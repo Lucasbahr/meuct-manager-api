@@ -1,0 +1,17 @@
+repos:
+  - repo: local
+    hooks:
+      - id: flake8
+        name: Lint code
+        entry: flake8 app
+        language: system
+        types: [python]
+        exclude: ^(alembic/)
+        stages: [pre-commit]
+
+      - id: pytest
+        name: Run tests
+        entry: pytest
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
