@@ -5,6 +5,14 @@ terraform {
       version = "~> 4.0"
     }
   }
+
+  cloud {
+    organization = "lucasbahr12"
+
+    workspaces {
+      name = "meuct-api"
+    }
+  }
 }
 
 provider "google" {

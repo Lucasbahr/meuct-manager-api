@@ -106,11 +106,14 @@ jobs:
       - name: Terraform Init
         working-directory: terraform
         run: terraform init
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
 
       - name: Terraform
         run: terraform apply -auto-approve
         env:
           TF_VAR_project_id: ${{ secrets.GCP_PROJECT }}
+          TF_VAR_project_id: us-central1
           TF_VAR_image: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/meuct/meuct-api:${{ github.sha }}
           TF_VAR_environment: ${{ github.ref == 'refs/heads/master' && 'prod' || 'hml' }}
           TF_VAR_database_url: ${{ github.ref == 'refs/heads/master' && secrets.DATABASE_URL_PROD || secrets.DATABASE_URL_HML }}

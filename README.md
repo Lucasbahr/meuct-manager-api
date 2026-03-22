@@ -159,21 +159,40 @@ docker compose up -d --build
 
 ---
 
-## ⚙️ CI/CD (GitHub Actions)
+## 🚀 Deploy
 
-A pipeline executa:
+Este projeto utiliza pipeline de CI/CD com GitHub Actions para validação e deploy automático.
 
-* Instala dependências
-* Valida código
-* Prepara build
+### 🔹 Fluxo
 
-Arquivo:
-
-```bash
-.github/workflows/ci.yml
-```
+- `homologation` → ambiente de homologação (HML)
+- `master` → produção (PROD)
 
 ---
+
+### 🔹 Etapas do pipeline
+
+- Validação de código com **flake8**
+- Testes automatizados com **pytest** (coverage ≥ 80%)
+- Build e validação via **Docker / docker-compose**
+- Execução de migrations com **Alembic**
+- Build e push da imagem para o **Artifact Registry**
+- Deploy automatizado via **Terraform** no Google Cloud
+
+---
+
+### 🔹 Release
+
+- Versionamento automático com **semantic-release** (apenas `master`)
+- Geração de changelog e release no GitHub
+
+---
+
+### 🔹 Observações
+
+- Deploy só ocorre após sucesso em todas as etapas
+- Ambientes separados por variáveis (`prod` / `hml`)
+- Banco configurado via secrets (`DATABASE_URL_*`)
 
 ## 👊 Autor
 
