@@ -1,0 +1,22 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+terraform.tfvars
+# virtualenv
+venv/
+.env
+
+# vscode
+.vscode/
+
+# logs
+*.log
+
+# banco local
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
