@@ -100,8 +100,8 @@ jobs:
         
       - name: Build and Push Image
         run: |
-          docker build -t }us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/meuct/meuct-api:${{ github.sha }} .
-          docker push }us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/meuct/meuct-api:${{ github.sha }}
+          docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/meuct/meuct-api:${{ github.sha }} .
+          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/meuct/meuct-api:${{ github.sha }}
 
       - name: Terraform Init
         working-directory: terraform
