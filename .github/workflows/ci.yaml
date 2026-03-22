@@ -9,7 +9,12 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
+    env:
+      SECRET_KEY: meuct-secret
+      ALGORITHM: HS256
+      DATABASE_URL: sqlite:///./test.db
+      ADMIN_EMAIL: admin@meuct.com
+      ADMIN_PASSWORD: admin123
     steps:
       - name: Checkout
         uses: actions/checkout@v4
