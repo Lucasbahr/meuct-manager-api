@@ -52,7 +52,7 @@ jobs:
 
       - name: Start docker-compose
         run: |
-          docker-compose up -d --build
+          docker compose up -d --build
 
       - name: Wait for API
         run: sleep 20
@@ -61,7 +61,7 @@ jobs:
         run: curl --fail http://localhost:8000/health
 
       - name: Stop containers
-        run: docker-compose down
+        run: docker compose  down
 
   migrate:
     runs-on: ubuntu-latest
