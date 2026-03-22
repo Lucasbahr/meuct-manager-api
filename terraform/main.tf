@@ -1,9 +1,3 @@
-provider "google" {
-  project = var.project_id
-  region  = var.region
-}
-
-
 resource "google_service_account" "run_sa" {
   account_id   = "meuct-run-${var.environment}"
   display_name = "Cloud Run Service Account (${var.environment})"
