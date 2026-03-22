@@ -25,3 +25,8 @@ variable "environment" {
   description = "Environment (prod or hml)"
   type        = string
 }
+
+variable "google_credentials" {
+  type      = string
+  sensitive = true
+}

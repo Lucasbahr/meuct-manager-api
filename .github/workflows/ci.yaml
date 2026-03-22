@@ -122,6 +122,7 @@ jobs:
         run: terraform apply -auto-approve
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          TF_VAR_google_credentials: '${{ secrets.GCP_CREDENTIALS }}'
           TF_VAR_project_id: ${{ secrets.GCP_PROJECT }}
           TF_VAR_region: us-central1
           TF_VAR_image: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/meuct/meuct-api:${{ github.sha }}
