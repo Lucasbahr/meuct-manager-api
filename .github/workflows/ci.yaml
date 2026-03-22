@@ -109,8 +109,8 @@ jobs:
           docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/meuct/meuct-api:${{ github.sha }}
 
       - name: Setup Terraform
-          uses: hashicorp/setup-terraform@v3
-          
+        uses: hashicorp/setup-terraform@v3
+
       - name: Terraform Init
         working-directory: terraform
         run: terraform init
