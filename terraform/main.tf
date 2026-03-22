@@ -39,7 +39,7 @@ resource "google_cloud_run_service" "api" {
 
         env {
           name  = "ALGORITHM"
-          value = var.var.algorithm
+          value = var.algorithm
         }
 
         ports {
