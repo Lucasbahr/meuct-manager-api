@@ -30,3 +30,18 @@ variable "google_credentials" {
   type      = string
   sensitive = true
 }
+
+variable "ci_service_account" {
+  description = "Service account usada no CI/CD"
+  type        = string
+}
+
+variable "algorithm" {
+  description = "Service account usada no CI/CD"
+  type        = string
+}
+
+variable "secret_key" {
+  description = "Service account usada no CI/CD"
+  type        = string
+}
