@@ -118,6 +118,7 @@ jobs:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
 
       - name: Terraform
+        working-directory: terraform
         run: terraform apply -auto-approve
         env:
           TF_VAR_project_id: ${{ secrets.GCP_PROJECT }}
