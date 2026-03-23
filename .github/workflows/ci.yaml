@@ -120,18 +120,18 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        working-directory: terraform
+        working-directory: terraform/envs/${{ env.ENVIRONMENT }}
         run: terraform init
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
 
       - name: Select Terraform Workspace
-        working-directory: terraform
+        working-directory: terraform/envs/${{ env.ENVIRONMENT }}
         run: |
           terraform workspace select meuct-${ENVIRONMENT} || terraform workspace new meuct-${ENVIRONMENT}
 
       - name: Terraform Apply
-        working-directory: terraform
+        working-directory: terraform/envs/${{ env.ENVIRONMENT }}
         run: terraform apply -auto-approve
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
