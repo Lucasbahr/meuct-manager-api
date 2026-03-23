@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: ["master", "homologation"]
 
+permissions:
+  contents: write
+  
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -117,7 +120,13 @@ jobs:
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
 
-      - name: Terraform
+      - name: Select Terraform Workspace
+        working-directory: terraform
+        run: |
+          ENV=${{ github.ref == 'refs/heads/master' && 'prod' || 'hml' }}
+          terraform workspace select $ENV || terraform workspace new $ENV
+
+      - name: Terraform Apply
         working-directory: terraform
         run: terraform apply -auto-approve
         env:
