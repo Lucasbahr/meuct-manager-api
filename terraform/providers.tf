@@ -8,10 +8,6 @@ terraform {
 
   cloud {
     organization = "lucasbahr12"
-
-    workspaces {
-      prefix = "meuct-api-"
-    }
   }
 }
 
