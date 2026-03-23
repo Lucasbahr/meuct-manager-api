@@ -94,9 +94,8 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
     needs: migrate
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/homologation'
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/homologation' && github.event_name == 'push'
     env:
       ENVIRONMENT: ${{ github.ref == 'refs/heads/master' && 'prod' || 'hml' }}
 
