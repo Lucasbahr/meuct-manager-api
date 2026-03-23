@@ -10,7 +10,7 @@ terraform {
     organization = "lucasbahr12"
 
     workspaces {
-      name = "meuct-api"
+      prefix = "meuct-api-"
     }
   }
 }
