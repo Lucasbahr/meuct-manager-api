@@ -8,9 +8,8 @@ terraform {
 
   cloud {
     organization = "lucasbahr12"
-
     workspaces {
-      name = "meuct-api"
+      name = "meuct-api-hml"
     }
   }
 }
