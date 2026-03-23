@@ -45,7 +45,6 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    needs: test
 
     steps:
       - name: Checkout
@@ -71,7 +70,6 @@ jobs:
   migrate:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
-    needs: docker
 
     steps:
       - name: Checkout
