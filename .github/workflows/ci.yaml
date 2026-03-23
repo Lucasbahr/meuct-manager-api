@@ -129,7 +129,9 @@ jobs:
         working-directory: terraform/envs/${{ env.ENVIRONMENT }}
         run: |
           terraform workspace select meuct-${ENVIRONMENT} || terraform workspace new meuct-${ENVIRONMENT}
-
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          
       - name: Terraform Apply
         working-directory: terraform/envs/${{ env.ENVIRONMENT }}
         run: terraform apply -auto-approve
