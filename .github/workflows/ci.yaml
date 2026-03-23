@@ -160,9 +160,9 @@ jobs:
         run: |
           npm install -g semantic-release \
             @semantic-release/changelog \
-            @semantic-release/git \
             @semantic-release/commit-analyzer \
-            @semantic-release/release-notes-generator
+            @semantic-release/release-notes-generator \
+            @semantic-release/github
 
       - name: Run semantic-release
         run: semantic-release
