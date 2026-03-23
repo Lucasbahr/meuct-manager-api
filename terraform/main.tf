@@ -1,9 +1,24 @@
+resource "google_service_account" "run_sa" {
+  account_id   = "meuct-run-${var.environment}"
+  display_name = "Cloud Run Service Account (${var.environment})"
+}
+
+
+resource "google_service_account_iam_member" "ci_act_as" {
+  service_account_id = google_service_account.run_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.ci_service_account}"
+}
+
+
 resource "google_cloud_run_service" "api" {
   name     = "${var.service_name}-${var.environment}"
   location = var.region
 
   template {
     spec {
+      service_account_name = google_service_account.run_sa.email
+
       containers {
         image = var.image
 
@@ -15,6 +30,16 @@ resource "google_cloud_run_service" "api" {
         env {
           name  = "ENV"
           value = var.environment
+        }
+
+        env {
+          name  = "SECRET_KEY"
+          value = var.secret_key
+        }
+
+        env {
+          name  = "ALGORITHM"
+          value = var.algorithm
         }
 
         ports {
