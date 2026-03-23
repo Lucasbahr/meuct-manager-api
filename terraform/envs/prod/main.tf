@@ -1,38 +1,63 @@
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 4.0"
+resource "google_service_account" "run_sa" {
+  account_id   = "meuct-run-${var.environment}"
+  display_name = "Cloud Run Service Account (${var.environment})"
+}
+
+
+resource "google_service_account_iam_member" "ci_act_as" {
+  service_account_id = google_service_account.run_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.ci_service_account}"
+}
+
+
+resource "google_cloud_run_service" "api" {
+  name     = "${var.service_name}-${var.environment}"
+  location = var.region
+
+  template {
+    spec {
+      service_account_name = google_service_account.run_sa.email
+
+      containers {
+        image = var.image
+
+        env {
+          name  = "DATABASE_URL"
+          value = var.database_url
+        }
+
+        env {
+          name  = "ENV"
+          value = var.environment
+        }
+
+        env {
+          name  = "SECRET_KEY"
+          value = var.secret_key
+        }
+
+        env {
+          name  = "ALGORITHM"
+          value = var.algorithm
+        }
+
+        ports {
+          container_port = 8080
+        }
+      }
     }
   }
 
-  cloud {
-    organization = "lucasbahr12"
-    workspaces {
-      name = "meuct-api-prod"
-    }
+  traffic {
+    percent         = 100
+    latest_revision = true
   }
-  
 }
 
-provider "google" {
-  project = var.project_id
-  region  = var.region
-  credentials = var.google_credentials
-}
-
-module "api" {
-  source = "../../modules/cloud_run"
-
-  service_name      = "meuct-api"
-  environment       = "prod"
-  region            = var.region
-  project_id        = var.project_id
-  image             = var.image
-
-  database_url      = var.database_url
-  secret_key        = var.secret_key
-  algorithm         = var.algorithm
-
-  ci_service_account = var.ci_service_account
+resource "google_cloud_run_service_iam_member" "public_access" {
+  service  = google_cloud_run_service.api.name
+  location = google_cloud_run_service.api.location
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }
