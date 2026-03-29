@@ -62,7 +62,7 @@ jobs:
         run: sleep 20
 
       - name: Test API health
-        run: curl --fail http://localhost:8000/health
+        run: curl --fail http://localhost:8080/health
 
       - name: Stop containers
         run: docker compose  down
