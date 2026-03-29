@@ -28,6 +28,10 @@ services:
       ALGORITHM: HS256
       ADMIN_EMAIL: admin@meuct.com
       ADMIN_PASSWORD: admin123
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: lucasbahr12@gmail.com
+      SMTP_PASSWORD: jqzm ypjw rhtw vbmf
     volumes:
       - .:/app
     command: >
