@@ -1,6 +1,10 @@
+from datetime import date
+
 from pydantic import BaseModel, ConfigDict, field_validator
-from typing import Optional
+from typing import Literal, Optional
 import re
+
+NivelCompeticao = Literal["amador", "profissional"]
 
 
 class StudentCreate(BaseModel):
@@ -9,12 +13,28 @@ class StudentCreate(BaseModel):
     telefone: str
     modalidade: str
     graduacao: str
+    e_atleta: bool = False
+    cartel_mma: Optional[str] = None
+    cartel_jiu: Optional[str] = None
+    cartel_k1: Optional[str] = None
+    nivel_competicao: Optional[NivelCompeticao] = None
+    link_tapology: Optional[str] = None
+    ultima_luta_em: Optional[date] = None
+    ultima_luta_modalidade: Optional[str] = None
 
 
 class StudentUpdate(BaseModel):
     nome: Optional[str] = None
     telefone: Optional[str] = None
     endereco: Optional[str] = None
+    e_atleta: Optional[bool] = None
+    cartel_mma: Optional[str] = None
+    cartel_jiu: Optional[str] = None
+    cartel_k1: Optional[str] = None
+    nivel_competicao: Optional[NivelCompeticao] = None
+    link_tapology: Optional[str] = None
+    ultima_luta_em: Optional[date] = None
+    ultima_luta_modalidade: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -52,5 +72,14 @@ class StudentResponse(BaseModel):
     graduacao: Optional[str]
     tempo_de_treino: Optional[int]
     status: Optional[str]
+    e_atleta: bool
+    cartel_mma: Optional[str]
+    cartel_jiu: Optional[str]
+    cartel_k1: Optional[str]
+    nivel_competicao: Optional[str]
+    link_tapology: Optional[str]
+    ultima_luta_em: Optional[date]
+    ultima_luta_modalidade: Optional[str]
+    foto_url: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)
