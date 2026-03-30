@@ -82,9 +82,6 @@ resource "google_cloud_run_service" "api" {
           name  = "BASE_URL"
           value = var.base_url
         }
-<<<<<<< Updated upstream
-        
-=======
 
         env {
           name  = "STORAGE_PROVIDER"
@@ -96,7 +93,6 @@ resource "google_cloud_run_service" "api" {
           value = google_storage_bucket.media.name
         }
 
->>>>>>> Stashed changes
         ports {
           container_port = 8080
         }
