@@ -67,3 +67,8 @@ variable "smtp_password" {
   description = "SMTP password"
   sensitive   = true
 }
+variable "base_url" {
+  type        = string
+  description = "base url"
+  sensitive   = true
+}

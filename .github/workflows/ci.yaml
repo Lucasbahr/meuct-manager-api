@@ -145,6 +145,7 @@ jobs:
           TF_VAR_smtp_port: 587
           TF_VAR_smtp_user: ${{ secrets.SMTP_USER }}
           TF_VAR_smtp_password: ${{ secrets.SMTP_PASSWORD }}
+          TF_VAR_base_url: ${{ secrets.BASE_URL }}
           
 
   release:

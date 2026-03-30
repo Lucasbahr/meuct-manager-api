@@ -61,6 +61,12 @@ resource "google_cloud_run_service" "api" {
           name  = "SMTP_PASSWORD"
           value = var.smtp_password
         }
+
+        env {
+          name  = "BASE_URL"
+          value = var.base_url
+        }
+        
         ports {
           container_port = 8080
         }
