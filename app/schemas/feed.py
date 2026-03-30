@@ -7,7 +7,7 @@ FeedTipo = Literal["luta", "evento", "graduacao"]
 
 
 class FeedItemCreate(BaseModel):
-    tipo: FeedTipo
+    tipo: FeedTipo = "evento"
     titulo: str
     descricao: Optional[str] = None
 
@@ -18,6 +18,38 @@ class FeedItemCreate(BaseModel):
     graduacao: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("titulo")
+    @classmethod
+    def titulo_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Titulo não pode ser vazio")
+        return v.strip()
+
+    @field_validator("evento_data", mode="before")
+    @classmethod
+    def parse_evento_data(cls, v):
+        if v in (None, ""):
+            return None
+        if isinstance(v, date):
+            return v
+        if isinstance(v, str):
+            raw = v.strip()
+            # Flutter commonly sends ISO datetime from DateTime.toIso8601String()
+            if "T" in raw:
+                try:
+                    return datetime.fromisoformat(raw.replace("Z", "+00:00")).date()
+                except ValueError:
+                    pass
+            try:
+                return date.fromisoformat(raw)
+            except ValueError:
+                pass
+            try:
+                return datetime.strptime(raw, "%d/%m/%Y").date()
+            except ValueError:
+                pass
+        raise ValueError("Data inválida. Use YYYY-MM-DD ou DD/MM/YYYY")
 
 
 class FeedItemUpdate(BaseModel):
@@ -30,6 +62,39 @@ class FeedItemUpdate(BaseModel):
     graduacao: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("titulo")
+    @classmethod
+    def titulo_not_empty(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not v.strip():
+            raise ValueError("Titulo não pode ser vazio")
+        return v.strip()
+
+    @field_validator("evento_data", mode="before")
+    @classmethod
+    def parse_evento_data(cls, v):
+        if v in (None, ""):
+            return None
+        if isinstance(v, date):
+            return v
+        if isinstance(v, str):
+            raw = v.strip()
+            if "T" in raw:
+                try:
+                    return datetime.fromisoformat(raw.replace("Z", "+00:00")).date()
+                except ValueError:
+                    pass
+            try:
+                return date.fromisoformat(raw)
+            except ValueError:
+                pass
+            try:
+                return datetime.strptime(raw, "%d/%m/%Y").date()
+            except ValueError:
+                pass
+        raise ValueError("Data inválida. Use YYYY-MM-DD ou DD/MM/YYYY")
 
 
 class FeedItemResponse(BaseModel):

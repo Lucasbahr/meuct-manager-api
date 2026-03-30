@@ -81,3 +81,40 @@ def test_add_comment_and_list_comments(client, admin_token, user_token):
     data = comments.json()["data"]
     assert any(c["id"] == comment.json()["data"]["id"] for c in data)
 
+
+def test_create_feed_without_tipo_defaults_evento(client, admin_token):
+    response = client.post(
+        "/feed/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"titulo": "Post sem tipo"},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["data"]["tipo"] == "evento"
+
+
+def test_create_feed_accepts_calendar_datetime_string(client, admin_token):
+    response = client.post(
+        "/feed/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "tipo": "evento",
+            "titulo": "Com data calendario",
+            "evento_data": "2026-04-01T00:00:00.000Z",
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["data"]["evento_data"] == "2026-04-01"
+
+
+def test_create_feed_rejects_invalid_date(client, admin_token):
+    response = client.post(
+        "/feed/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "tipo": "evento",
+            "titulo": "Data errada",
+            "evento_data": "31-02-2026",
+        },
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
