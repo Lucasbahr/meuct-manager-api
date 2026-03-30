@@ -41,7 +41,7 @@ resource "google_cloud_run_service" "api" {
           name  = "ALGORITHM"
           value = var.algorithm
         }
-        
+
         env {
           name  = "SMTP_HOST"
           value = var.smtp_host
@@ -60,6 +60,11 @@ resource "google_cloud_run_service" "api" {
         env {
           name  = "SMTP_PASSWORD"
           value = var.smtp_password
+        }
+
+        env {
+          name  = "BASE_URL"
+          value = var.base_url
         }
 
         ports {
