@@ -19,6 +19,7 @@ class StudentCreate(BaseModel):
     cartel_k1: Optional[str] = None
     nivel_competicao: Optional[NivelCompeticao] = None
     link_tapology: Optional[str] = None
+    data_nascimento: Optional[date] = None
     ultima_luta_em: Optional[date] = None
     ultima_luta_modalidade: Optional[str] = None
 
@@ -33,6 +34,7 @@ class StudentUpdate(BaseModel):
     cartel_k1: Optional[str] = None
     nivel_competicao: Optional[NivelCompeticao] = None
     link_tapology: Optional[str] = None
+    data_nascimento: Optional[date] = None
     ultima_luta_em: Optional[date] = None
     ultima_luta_modalidade: Optional[str] = None
 
@@ -78,6 +80,7 @@ class StudentResponse(BaseModel):
     cartel_k1: Optional[str]
     nivel_competicao: Optional[str]
     link_tapology: Optional[str]
+    data_nascimento: Optional[date]
     ultima_luta_em: Optional[date]
     ultima_luta_modalidade: Optional[str]
     foto_url: Optional[str]

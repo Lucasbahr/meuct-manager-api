@@ -67,6 +67,7 @@ def create_student(
         cartel_k1=data.cartel_k1,
         nivel_competicao=data.nivel_competicao,
         link_tapology=data.link_tapology,
+        data_nascimento=data.data_nascimento,
         ultima_luta_em=data.ultima_luta_em,
         ultima_luta_modalidade=data.ultima_luta_modalidade,
     )

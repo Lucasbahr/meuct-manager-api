@@ -31,6 +31,7 @@ class Student(Base):
     nivel_competicao = Column(String(32), nullable=True)
     link_tapology = Column(String(512), nullable=True)
 
+    data_nascimento = Column(Date, nullable=True)
     ultima_luta_em = Column(Date, nullable=True)
     ultima_luta_modalidade = Column(String(64), nullable=True)
     foto_path = Column(String(512), nullable=True)
