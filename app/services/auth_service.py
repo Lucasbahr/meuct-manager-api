@@ -69,7 +69,7 @@ def resend_verification_email(db: Session, email: str):
 
 # RESET EMAIL
 def send_reset_email(email: str, token: str):
-    link = f"{os.getenv('FRONTEND_URL')}/reset-password?token={token}"
+    link = f"{os.getenv('BASE_URL')}/auth/reset-password?token={token}"
 
     body = f"""
     <h2>Reset de senha</h2>
@@ -86,7 +86,7 @@ def send_reset_email(email: str, token: str):
 
 
 def send_verification_email(user_email: str, token: str):
-    link = f"{os.getenv('FRONTEND_URL')}/verify-email?token={token}"
+    link = f"{os.getenv('BASE_URL')}/auth/verify-email?token={token}"
 
     body = f"""
     <h2>Confirme seu email</h2>
