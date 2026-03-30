@@ -45,3 +45,25 @@ variable "secret_key" {
   description = "Service account usada no CI/CD"
   type        = string
 }
+
+variable "smtp_host" {
+  type        = string
+  description = "SMTP server host"
+}
+
+variable "smtp_port" {
+  type        = number
+  description = "SMTP server port"
+}
+
+variable "smtp_user" {
+  type        = string
+  description = "SMTP username"
+  sensitive   = true
+}
+
+variable "smtp_password" {
+  type        = string
+  description = "SMTP password"
+  sensitive   = true
+}
