@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.core.security import hash_password
+from app.core.email_utils import normalize_email
 
 
 def create_user(
@@ -10,6 +11,7 @@ def create_user(
     role: str = "ALUNO",
     is_verified: bool = True,
 ):
+    email = normalize_email(email)
     user = User(
         email=email,
         password=hash_password(password),

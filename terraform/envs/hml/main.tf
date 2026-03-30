@@ -10,6 +10,22 @@ resource "google_service_account_iam_member" "ci_act_as" {
   member             = "serviceAccount:${var.ci_service_account}"
 }
 
+locals {
+  media_bucket_name = "${var.service_name}-media-${var.environment}-${substr(replace(var.project_id, "_", "-"), 0, 12)}"
+}
+
+resource "google_storage_bucket" "media" {
+  name                        = local.media_bucket_name
+  location                    = var.region
+  uniform_bucket_level_access = true
+}
+
+resource "google_storage_bucket_iam_member" "run_sa_media_admin" {
+  bucket = google_storage_bucket.media.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.run_sa.email}"
+}
+
 
 resource "google_cloud_run_service" "api" {
   name     = "${var.service_name}-${var.environment}"
@@ -66,7 +82,17 @@ resource "google_cloud_run_service" "api" {
           name  = "BASE_URL"
           value = var.base_url
         }
-        
+
+        env {
+          name  = "STORAGE_PROVIDER"
+          value = "gcs"
+        }
+
+        env {
+          name  = "GCS_BUCKET_NAME"
+          value = google_storage_bucket.media.name
+        }
+
         ports {
           container_port = 8080
         }

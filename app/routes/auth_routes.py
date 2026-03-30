@@ -15,12 +15,16 @@ from app.db.deps import get_db
 from app.core.security import (
     decode_token,
     create_access_token,
+    create_refresh_token,
+    refresh_session_valid,
+    revoke_refresh_token,
     create_reset_token,
     hash_password,
     verify_password,
 )
 from app.models.user import User
 import logging
+from app.core.email_utils import normalize_email
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -55,12 +59,47 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     token = create_access_token(
         {"sub": db_user.email, "user_id": db_user.id, "role": db_user.role}
     )
+    refresh_token = create_refresh_token(
+        {"sub": db_user.email, "user_id": db_user.id, "role": db_user.role}
+    )
 
     return {
         "success": True,
         "message": "Login realizado com sucesso",
-        "data": {"access_token": token},
+        "data": {"access_token": token, "refresh_token": refresh_token},
     }
+
+
+@router.post("/refresh", response_model=ResponseBase)
+def refresh(refresh_token: str, db: Session = Depends(get_db)):
+    payload = decode_token(refresh_token)
+    if payload.get("error"):
+        raise HTTPException(status_code=401, detail="Refresh token inválido ou expirado")
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Tipo de token inválido")
+    if not refresh_session_valid(refresh_token):
+        raise HTTPException(status_code=401, detail="Sessão expirada")
+
+    user_id = payload.get("user_id")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    access_token = create_access_token(
+        {"sub": user.email, "user_id": user.id, "role": user.role}
+    )
+
+    return {
+        "success": True,
+        "message": "Sessão renovada",
+        "data": {"access_token": access_token},
+    }
+
+
+@router.post("/logout", response_model=ResponseBase)
+def logout(refresh_token: str):
+    revoke_refresh_token(refresh_token)
+    return {"success": True, "message": "Logout realizado", "data": None}
 
 
 #  VERIFY EMAIL
@@ -100,7 +139,7 @@ def verify_email(token: str, db: Session = Depends(get_db)):
 #  RESEND EMAIL
 @router.post("/resend-verification", response_model=ResponseBase)
 def resend_verification(email: str = Query(...), db: Session = Depends(get_db)):
-    resend_verification_email(db, email)
+    resend_verification_email(db, normalize_email(email))
 
     return {
         "success": True,
@@ -112,6 +151,7 @@ def resend_verification(email: str = Query(...), db: Session = Depends(get_db)):
 #  FORGOT PASSWORD
 @router.post("/forgot-password", response_model=ResponseBase)
 def forgot_password(email: str, db: Session = Depends(get_db)):
+    email = normalize_email(email)
     user = db.query(User).filter(User.email == email).first()
 
     if user:

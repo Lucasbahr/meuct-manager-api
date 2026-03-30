@@ -29,6 +29,16 @@ def test_register_duplicate_email(client):
     assert response.status_code in [400, 409]
 
 
+def test_register_duplicate_email_case_insensitive(client):
+    client.post(
+        "/auth/register", json={"email": "Case@Teste.com", "password": "123456"}
+    )
+    response = client.post(
+        "/auth/register", json={"email": "case@teste.com", "password": "123456"}
+    )
+    assert response.status_code in [400, 409]
+
+
 # =========================
 # LOGIN
 # =========================
@@ -43,6 +53,7 @@ def test_login_success(client, db):
 
     assert response.status_code == 200
     assert "access_token" in response.json()["data"]
+    assert "refresh_token" in response.json()["data"]
 
 
 def test_login_wrong_password(client, db):
@@ -61,6 +72,15 @@ def test_login_user_not_found(client):
     )
 
     assert response.status_code == 401
+
+
+def test_login_case_insensitive_email(client, db):
+    create_user(db, "caps@teste.com", "123456")
+    response = client.post(
+        "/auth/login", json={"email": "CAPS@TESTE.COM", "password": "123456"}
+    )
+    assert response.status_code == 200
+    assert "access_token" in response.json()["data"]
 
 
 # =========================
@@ -129,6 +149,14 @@ def test_forgot_password_existing_user(client, db):
 
     response = client.post("/auth/forgot-password?email=forgot@teste.com")
 
+    assert response.status_code == 200
+
+
+def test_forgot_password_case_insensitive(client, db):
+    user = User(email="mixed@teste.com", password="123", role="ALUNO")
+    db.add(user)
+    db.commit()
+    response = client.post("/auth/forgot-password?email=MIXED@TESTE.COM")
     assert response.status_code == 200
 
 
@@ -217,3 +245,29 @@ def test_change_password_without_token(client):
     )
 
     assert response.status_code == 401
+
+
+def test_refresh_session(client, db):
+    create_user(db, "refresh@teste.com", "123456")
+    login = client.post(
+        "/auth/login", json={"email": "refresh@teste.com", "password": "123456"}
+    )
+    refresh_token = login.json()["data"]["refresh_token"]
+
+    response = client.post(f"/auth/refresh?refresh_token={refresh_token}")
+    assert response.status_code == 200
+    assert "access_token" in response.json()["data"]
+
+
+def test_logout_revokes_refresh_token(client, db):
+    create_user(db, "logout@teste.com", "123456")
+    login = client.post(
+        "/auth/login", json={"email": "logout@teste.com", "password": "123456"}
+    )
+    refresh_token = login.json()["data"]["refresh_token"]
+
+    out = client.post(f"/auth/logout?refresh_token={refresh_token}")
+    assert out.status_code == 200
+
+    retry = client.post(f"/auth/refresh?refresh_token={refresh_token}")
+    assert retry.status_code == 401

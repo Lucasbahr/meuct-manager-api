@@ -32,7 +32,7 @@ def upgrade() -> None:
     op.add_column("students", sa.Column("cartel_k1", sa.String(length=128), nullable=True))
     op.add_column("students", sa.Column("nivel_competicao", sa.String(length=32), nullable=True))
     op.add_column("students", sa.Column("link_tapology", sa.String(length=512), nullable=True))
-    op.alter_column("students", "e_atleta", server_default=None)
+    # Keep server_default to remain compatible with SQLite migrations.
 
 
 def downgrade() -> None:

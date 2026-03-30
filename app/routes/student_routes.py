@@ -1,8 +1,7 @@
-import mimetypes
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
@@ -10,6 +9,8 @@ from app.schemas.response import ResponseBase
 from app.core.deps import get_current_user, require_admin
 from app.db.deps import get_db
 from app.models.student import Student
+from app.models.checkin import Checkin
+from app.models.user import User
 from app.schemas.student import (
     StudentCreate,
     StudentUpdate,
@@ -17,8 +18,8 @@ from app.schemas.student import (
     StudentResponse,
 )
 from app.services.student_photo import (
-    abs_photo_path,
     delete_student_photo,
+    get_photo_bytes,
     save_student_photo,
 )
 
@@ -162,7 +163,7 @@ async def upload_my_photo(
     }
 
 
-@router.get("/me/photo", response_class=FileResponse)
+@router.get("/me/photo")
 def get_my_photo(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -172,14 +173,11 @@ def get_my_photo(
     )
     if not student or not student.foto_path:
         raise HTTPException(status_code=404, detail="Foto não encontrada")
-    path = abs_photo_path(student.foto_path)
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail="Foto não encontrada")
-    media, _ = mimetypes.guess_type(path.name)
-    return FileResponse(str(path), media_type=media or "application/octet-stream")
+    content, media_type = get_photo_bytes(student.foto_path)
+    return Response(content=content, media_type=media_type)
 
 
-@router.get("/{student_id}/photo", response_class=FileResponse)
+@router.get("/{student_id}/photo")
 def get_student_photo(
     student_id: int,
     db: Session = Depends(get_db),
@@ -192,11 +190,8 @@ def get_student_photo(
         mine = db.query(Student).filter(Student.user_id == user["user_id"]).first()
         if not mine or mine.id != student_id:
             raise HTTPException(status_code=403, detail="Not authorized")
-    path = abs_photo_path(student.foto_path)
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail="Foto não encontrada")
-    media, _ = mimetypes.guess_type(path.name)
-    return FileResponse(str(path), media_type=media or "application/octet-stream")
+    content, media_type = get_photo_bytes(student.foto_path)
+    return Response(content=content, media_type=media_type)
 
 
 @router.post("/{student_id}/photo", response_model=ResponseBase)
@@ -257,4 +252,36 @@ def admin_update_student(
         "success": True,
         "message": "Aluno atualizado",
         "data": StudentResponse.model_validate(student),
+    }
+
+
+@router.delete("/{student_id}", response_model=ResponseBase)
+def admin_delete_student(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    # Remove dependent rows first (no cascade configured).
+    db.query(Checkin).filter(Checkin.student_id == student.id).delete(
+        synchronize_session=False
+    )
+
+    # Remove stored photo (local or GCS depending on env).
+    delete_student_photo(student.foto_path)
+
+    user = db.query(User).filter(User.id == student.user_id).first()
+    db.delete(student)
+    if user:
+        db.delete(user)
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "Aluno e usuário removidos",
+        "data": None,
     }
