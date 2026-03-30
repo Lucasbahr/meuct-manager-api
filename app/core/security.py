@@ -3,6 +3,7 @@ from jose import jwt, JWTError, ExpiredSignatureError
 from datetime import datetime, timedelta, timezone
 import os
 from dotenv import load_dotenv
+from app.core.session_cache import session_cache
 
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -33,6 +34,22 @@ def _create_token(data: dict, expires_delta: timedelta, token_type: str):
 #  ACCESS TOKEN (login)
 def create_access_token(data: dict):
     return _create_token(data, timedelta(hours=2), "access")
+
+
+#  REFRESH TOKEN (sessão em background)
+def create_refresh_token(data: dict):
+    ttl = timedelta(days=30)
+    token = _create_token(data, ttl, "refresh")
+    session_cache.put(token, ttl)
+    return token
+
+
+def refresh_session_valid(token: str) -> bool:
+    return session_cache.exists(token)
+
+
+def revoke_refresh_token(token: str) -> None:
+    session_cache.delete(token)
 
 
 #  RESET TOKEN (senha)

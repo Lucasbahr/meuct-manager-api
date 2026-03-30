@@ -43,6 +43,7 @@ def test_login_success(client, db):
 
     assert response.status_code == 200
     assert "access_token" in response.json()["data"]
+    assert "refresh_token" in response.json()["data"]
 
 
 def test_login_wrong_password(client, db):
@@ -217,3 +218,29 @@ def test_change_password_without_token(client):
     )
 
     assert response.status_code == 401
+
+
+def test_refresh_session(client, db):
+    create_user(db, "refresh@teste.com", "123456")
+    login = client.post(
+        "/auth/login", json={"email": "refresh@teste.com", "password": "123456"}
+    )
+    refresh_token = login.json()["data"]["refresh_token"]
+
+    response = client.post(f"/auth/refresh?refresh_token={refresh_token}")
+    assert response.status_code == 200
+    assert "access_token" in response.json()["data"]
+
+
+def test_logout_revokes_refresh_token(client, db):
+    create_user(db, "logout@teste.com", "123456")
+    login = client.post(
+        "/auth/login", json={"email": "logout@teste.com", "password": "123456"}
+    )
+    refresh_token = login.json()["data"]["refresh_token"]
+
+    out = client.post(f"/auth/logout?refresh_token={refresh_token}")
+    assert out.status_code == 200
+
+    retry = client.post(f"/auth/refresh?refresh_token={refresh_token}")
+    assert retry.status_code == 401
