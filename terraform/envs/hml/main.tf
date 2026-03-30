@@ -41,7 +41,26 @@ resource "google_cloud_run_service" "api" {
           name  = "ALGORITHM"
           value = var.algorithm
         }
+        
+        env {
+          name  = "SMTP_HOST"
+          value = var.smtp_host
+        }
 
+        env {
+          name  = "SMTP_PORT"
+          value = tostring(var.smtp_port)
+        }
+
+        env {
+          name  = "SMTP_USER"
+          value = var.smtp_user
+        }
+
+        env {
+          name  = "SMTP_PASSWORD"
+          value = var.smtp_password
+        }
         ports {
           container_port = 8080
         }

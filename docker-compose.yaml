@@ -30,8 +30,8 @@ services:
       ADMIN_PASSWORD: admin123
       SMTP_HOST: smtp.gmail.com
       SMTP_PORT: 587
-      SMTP_USER: lucasbahr12@gmail.com
-      SMTP_PASSWORD: jqzm ypjw rhtw vbmf
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
     volumes:
       - .:/app
     command: >
