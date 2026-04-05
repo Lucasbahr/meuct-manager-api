@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 import pytz
 from sqlalchemy import func
+from typing import Optional
 
 from app.schemas.response import ResponseBase
 from app.db.deps import get_db
@@ -15,11 +16,24 @@ router = APIRouter(prefix="/checkin", tags=["Checkin"])
 
 #  CHECK-IN
 @router.post("/", response_model=ResponseBase)
-def do_checkin(user=Depends(get_current_user), db: Session = Depends(get_db)):
-    student = db.query(Student).filter(Student.user_id == user["user_id"]).first()
+def do_checkin(
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+    student_id: Optional[int] = Body(default=None, embed=True),
+):
+    if student_id is not None:
+        if user.get("role") != "ADMIN":
+            raise HTTPException(
+                status_code=403, detail="Apenas administradores podem informar student_id"
+            )
+        student = db.query(Student).filter(Student.id == student_id).first()
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+    else:
+        student = db.query(Student).filter(Student.user_id == user["user_id"]).first()
 
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
 
     tz = pytz.timezone("America/Sao_Paulo")
     today_start = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)

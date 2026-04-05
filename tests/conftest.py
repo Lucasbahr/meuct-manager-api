@@ -17,6 +17,12 @@ engine = create_engine(
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+@pytest.fixture(autouse=True)
+def upload_dir_tmp(monkeypatch, tmp_path):
+    monkeypatch.setenv("UPLOAD_DIR", str(tmp_path / "uploads"))
+    yield
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
     Base.metadata.create_all(bind=engine)
