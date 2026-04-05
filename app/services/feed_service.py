@@ -28,6 +28,7 @@ class FeedService:
             local=data.local,
             modalidade=data.modalidade,
             graduacao=data.graduacao,
+            imagem_link=data.imagem_link,
         )
         self.db.add(item)
         self.db.commit()
@@ -150,6 +151,7 @@ class FeedService:
                     "modalidade": item.modalidade,
                     "graduacao": item.graduacao,
                     "image_url": item.image_url,
+                    "imagem_link": item.imagem_link,
                     "like_count": like_map.get(item.id, 0),
                     "comment_count": comment_map.get(item.id, 0),
                     "liked_by_me": (
