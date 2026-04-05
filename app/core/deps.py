@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
+from jose import jwt, JWTError, ExpiredSignatureError
 import os
 from dotenv import load_dotenv
 
@@ -18,6 +18,8 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expirado")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 

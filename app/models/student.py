@@ -35,6 +35,8 @@ class Student(Base):
     ultima_luta_em = Column(Date, nullable=True)
     ultima_luta_modalidade = Column(String(64), nullable=True)
     foto_path = Column(String(512), nullable=True)
+    # Foto só para o cartão na aba Atletas (admin envia; independente da foto de perfil).
+    foto_atleta_path = Column(String(512), nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=now_utc)
     updated_at = Column(DateTime(timezone=True), nullable=True)
@@ -48,3 +50,9 @@ class Student(Base):
         if not self.foto_path or self.id is None:
             return None
         return f"/students/{self.id}/photo"
+
+    @property
+    def foto_atleta_url(self):
+        if not self.foto_atleta_path or self.id is None:
+            return None
+        return f"/students/{self.id}/athlete-card/photo"

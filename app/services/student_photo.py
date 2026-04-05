@@ -144,6 +144,16 @@ def save_student_photo(student_id: int, content: bytes, content_type: str) -> st
     return save_photo(prefix=f"students/{student_id}", content=content, content_type=content_type)
 
 
+def save_student_athlete_card_photo(
+    student_id: int, content: bytes, content_type: str
+) -> str:
+    return save_photo(
+        prefix=f"students/{student_id}/athlete_card",
+        content=content,
+        content_type=content_type,
+    )
+
+
 def save_feed_photo(feed_item_id: int, content: bytes, content_type: str) -> str:
     return save_photo(prefix=f"feed_items/{feed_item_id}", content=content, content_type=content_type)
 
