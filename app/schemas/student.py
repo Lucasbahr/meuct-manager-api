@@ -84,5 +84,6 @@ class StudentResponse(BaseModel):
     ultima_luta_em: Optional[date]
     ultima_luta_modalidade: Optional[str]
     foto_url: Optional[str]
+    foto_atleta_url: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)
