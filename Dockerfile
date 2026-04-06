@@ -17,4 +17,5 @@ COPY . .
 
 EXPOSE 8080
 
-CMD exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}
+# Garante schema (ex.: feed_items.imagem_link) antes de subir o app — evita 500 no GET /feed/
+CMD sh -c "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"
