@@ -82,6 +82,38 @@ def test_add_comment_and_list_comments(client, admin_token, user_token):
     assert any(c["id"] == comment.json()["data"]["id"] for c in data)
 
 
+def test_create_feed_with_imagem_link_roundtrip(client, admin_token, user_token):
+    url = "https://example.com/fight"
+    create = client.post(
+        "/feed/",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "tipo": "evento",
+            "titulo": "Post com link na foto",
+            "imagem_link": url,
+        },
+    )
+    assert create.status_code == status.HTTP_200_OK
+    assert create.json()["data"]["imagem_link"] == url
+    item_id = create.json()["data"]["id"]
+
+    feed = client.get(
+        "/feed/",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert feed.status_code == status.HTTP_200_OK
+    item = next(i for i in feed.json()["data"] if i["id"] == item_id)
+    assert item.get("imagem_link") == url
+
+    clear = client.put(
+        f"/feed/{item_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"imagem_link": None},
+    )
+    assert clear.status_code == status.HTTP_200_OK
+    assert clear.json()["data"].get("imagem_link") is None
+
+
 def test_create_feed_without_tipo_defaults_evento(client, admin_token):
     response = client.post(
         "/feed/",

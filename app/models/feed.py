@@ -36,6 +36,8 @@ class FeedItem(Base):
     graduacao = Column(String(64), nullable=True)
 
     image_path = Column(String(512), nullable=True)  # storage object key
+    # URL externa ao tocar na imagem (app admin).
+    imagem_link = Column(String(1024), nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=now_utc)
     updated_at = Column(DateTime(timezone=True), nullable=True)

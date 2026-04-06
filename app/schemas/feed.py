@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 FeedTipo = Literal["luta", "evento", "graduacao"]
 
@@ -16,8 +16,18 @@ class FeedItemCreate(BaseModel):
 
     modalidade: Optional[str] = None
     graduacao: Optional[str] = None
+    imagem_link: Optional[str] = Field(default=None, max_length=1024)
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("imagem_link", mode="before")
+    @classmethod
+    def empty_imagem_link_create(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v.strip() if isinstance(v, str) else v
 
     @field_validator("titulo")
     @classmethod
@@ -60,8 +70,18 @@ class FeedItemUpdate(BaseModel):
     local: Optional[str] = None
     modalidade: Optional[str] = None
     graduacao: Optional[str] = None
+    imagem_link: Optional[str] = Field(default=None, max_length=1024)
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("imagem_link", mode="before")
+    @classmethod
+    def empty_imagem_link_update(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v.strip() if isinstance(v, str) else v
 
     @field_validator("titulo")
     @classmethod
@@ -110,6 +130,7 @@ class FeedItemResponse(BaseModel):
     graduacao: Optional[str] = None
 
     image_url: Optional[str] = None
+    imagem_link: Optional[str] = None
 
     like_count: int
     comment_count: int
