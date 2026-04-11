@@ -1,13 +1,14 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
 
 
 class Modality(Base):
-    """Global catalog of martial arts modalities."""
+    """Catálogo global de modalidades."""
 
     __tablename__ = "modalities"
+    __table_args__ = (UniqueConstraint("name", name="uq_modalities_name"),)
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(128), nullable=False, index=True)

@@ -25,25 +25,16 @@ def _seed_badges(db):
 
 def _training_setup(db, user):
     _seed_badges(db)
-    m = Modality(name="Muay Thai")
-    db.add(m)
-    db.flush()
-    g1 = Graduation(
-        gym_id=1,
-        modality_id=m.id,
-        name="Branca",
-        level=1,
-        required_hours=Decimal("10"),
+    m = db.query(Modality).filter(Modality.name == "Muay Thai").one()
+    g1 = (
+        db.query(Graduation)
+        .filter(
+            Graduation.gym_id == 1,
+            Graduation.modality_id == m.id,
+            Graduation.level == 1,
+        )
+        .one()
     )
-    g2 = Graduation(
-        gym_id=1,
-        modality_id=m.id,
-        name="Azul",
-        level=2,
-        required_hours=Decimal("20"),
-    )
-    db.add_all([g1, g2])
-    db.flush()
     st = Student(user_id=user.id, nome="Aluno Treino", telefone="11999999999")
     db.add(st)
     db.flush()

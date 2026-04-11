@@ -88,12 +88,16 @@ def ensure_admin_exists(db: Session):
             user_id=user.id,
             nome="Admin",
             telefone="",
-            modalidade="Muay-Thai",
-            graduacao="Branca",
             status="ativo",
         )
 
         db.add(student)
+        db.commit()
+        db.refresh(student)
+
+        from app.services import student_modality_service as sm_svc
+
+        sm_svc.ensure_default_enrollment(db, gym_id, student.id)
         db.commit()
 
         print("🔥 Admin do gym criado com sucesso!")
