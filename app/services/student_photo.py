@@ -30,6 +30,11 @@ def _upload_root() -> Path:
     return p
 
 
+def local_upload_root() -> Path:
+    """Raiz local de uploads (também usada quando STORAGE_PROVIDER=local)."""
+    return _upload_root()
+
+
 def abs_photo_path(relative: str) -> Path:
     # Local-only path. In GCS mode we still keep this for tests/compat.
     return _upload_root() / relative.replace("\\", "/")
@@ -37,6 +42,17 @@ def abs_photo_path(relative: str) -> Path:
 
 def _build_object_key(prefix: str, ext: str) -> str:
     return f"{prefix}/{uuid.uuid4().hex}{ext}"
+
+
+def tenant_storage_segment(gym_id: int) -> str:
+    """
+    Prefixo por academia dentro do bucket (ou disco local).
+    ``GCS_TENANT_PREFIX`` vazio desativa o segmento (somente legado / migração).
+    """
+    root = (os.getenv("GCS_TENANT_PREFIX") or "tenants").strip().strip("/")
+    if not root:
+        return ""
+    return f"{root}/{int(gym_id)}"
 
 
 def _validate_image(content: bytes, content_type: str) -> Tuple[str, str]:
@@ -140,22 +156,31 @@ def delete_student_photo(relative: str | None) -> None:
         path.unlink()
 
 
-def save_student_photo(student_id: int, content: bytes, content_type: str) -> str:
-    return save_photo(prefix=f"students/{student_id}", content=content, content_type=content_type)
+def save_student_photo(
+    gym_id: int, student_id: int, content: bytes, content_type: str
+) -> str:
+    seg = tenant_storage_segment(gym_id)
+    inner = f"students/{student_id}"
+    prefix = f"{seg}/{inner}" if seg else inner
+    return save_photo(prefix=prefix, content=content, content_type=content_type)
 
 
 def save_student_athlete_card_photo(
-    student_id: int, content: bytes, content_type: str
+    gym_id: int, student_id: int, content: bytes, content_type: str
 ) -> str:
-    return save_photo(
-        prefix=f"students/{student_id}/athlete_card",
-        content=content,
-        content_type=content_type,
-    )
+    seg = tenant_storage_segment(gym_id)
+    inner = f"students/{student_id}/athlete_card"
+    prefix = f"{seg}/{inner}" if seg else inner
+    return save_photo(prefix=prefix, content=content, content_type=content_type)
 
 
-def save_feed_photo(feed_item_id: int, content: bytes, content_type: str) -> str:
-    return save_photo(prefix=f"feed_items/{feed_item_id}", content=content, content_type=content_type)
+def save_feed_photo(
+    gym_id: int, feed_item_id: int, content: bytes, content_type: str
+) -> str:
+    seg = tenant_storage_segment(gym_id)
+    inner = f"feed_items/{feed_item_id}"
+    prefix = f"{seg}/{inner}" if seg else inner
+    return save_photo(prefix=prefix, content=content, content_type=content_type)
 
 
 def delete_feed_photo(relative: str | None) -> None:

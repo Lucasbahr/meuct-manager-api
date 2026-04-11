@@ -89,7 +89,9 @@ def test_login_case_insensitive_email(client, db):
 
 
 def test_verify_email_success(client, db):
-    user = User(email="verify@teste.com", password="123", role="ALUNO")
+    user = User(
+        gym_id=1, email="verify@teste.com", password="123", role="ALUNO"
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -143,7 +145,9 @@ def test_resend_verification_without_email(client):
 
 
 def test_forgot_password_existing_user(client, db):
-    user = User(email="forgot@teste.com", password="123", role="ALUNO")
+    user = User(
+        gym_id=1, email="forgot@teste.com", password="123", role="ALUNO"
+    )
     db.add(user)
     db.commit()
 
@@ -153,7 +157,9 @@ def test_forgot_password_existing_user(client, db):
 
 
 def test_forgot_password_case_insensitive(client, db):
-    user = User(email="mixed@teste.com", password="123", role="ALUNO")
+    user = User(
+        gym_id=1, email="mixed@teste.com", password="123", role="ALUNO"
+    )
     db.add(user)
     db.commit()
     response = client.post("/auth/forgot-password?email=MIXED@TESTE.COM")
@@ -172,7 +178,9 @@ def test_forgot_password_non_existing(client):
 
 
 def test_reset_password_success(client, db):
-    user = User(email="reset@teste.com", password="123", role="ALUNO")
+    user = User(
+        gym_id=1, email="reset@teste.com", password="123", role="ALUNO"
+    )
     db.add(user)
     db.commit()
 

@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.models.student import Student
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
+
+from app.services.audit_service import record_audit_event, ACTION_LOGIN, ACTION_PASSWORD_CHANGED
 from app.core.deps import get_current_user
 from app.schemas.response import ResponseBase
 from app.schemas.user import UserCreate, UserLogin
@@ -23,6 +25,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models.user import User
+from app.services.user_service import get_user_by_email
 import logging
 from app.core.email_utils import normalize_email
 
@@ -35,7 +38,9 @@ logger = logging.getLogger(__name__)
 #  REGISTER
 @router.post("/register", response_model=ResponseBase)
 def register(user: UserCreate, db: Session = Depends(get_db)):
-    created_user = register_user(db, user.email, user.password)
+    created_user = register_user(
+        db, user.email, user.password, gym_id=user.gym_id
+    )
 
     return {
         "success": True,
@@ -44,6 +49,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
             "id": created_user.id,
             "email": created_user.email,
             "role": created_user.role,
+            "gym_id": created_user.gym_id,
         },
     }
 
@@ -56,11 +62,30 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     if not db_user:
         raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
+    db_user.last_login_at = datetime.now(timezone.utc)
+    record_audit_event(
+        db,
+        actor_user_id=db_user.id,
+        gym_id=db_user.gym_id,
+        action=ACTION_LOGIN,
+    )
+    db.commit()
+
     token = create_access_token(
-        {"sub": db_user.email, "user_id": db_user.id, "role": db_user.role}
+        {
+            "sub": db_user.email,
+            "user_id": db_user.id,
+            "role": db_user.role,
+            "gym_id": db_user.gym_id,
+        }
     )
     refresh_token = create_refresh_token(
-        {"sub": db_user.email, "user_id": db_user.id, "role": db_user.role}
+        {
+            "sub": db_user.email,
+            "user_id": db_user.id,
+            "role": db_user.role,
+            "gym_id": db_user.gym_id,
+        }
     )
 
     return {
@@ -86,7 +111,12 @@ def refresh(refresh_token: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
     access_token = create_access_token(
-        {"sub": user.email, "user_id": user.id, "role": user.role}
+        {
+            "sub": user.email,
+            "user_id": user.id,
+            "role": user.role,
+            "gym_id": user.gym_id,
+        }
     )
 
     return {
@@ -152,7 +182,7 @@ def resend_verification(email: str = Query(...), db: Session = Depends(get_db)):
 @router.post("/forgot-password", response_model=ResponseBase)
 def forgot_password(email: str, db: Session = Depends(get_db)):
     email = normalize_email(email)
-    user = db.query(User).filter(User.email == email).first()
+    user = get_user_by_email(db, email)
 
     if user:
         token = create_reset_token(user.email)
@@ -181,13 +211,20 @@ def reset_password(token: str, new_password: str, db: Session = Depends(get_db))
     if not email:
         raise HTTPException(status_code=400, detail="Token inválido")
 
-    user = db.query(User).filter(User.email == email).first()
+    user = get_user_by_email(db, email)
 
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
     user.password = hash_password(new_password)
     user.password_reset_at = datetime.now(timezone.utc)
+    record_audit_event(
+        db,
+        actor_user_id=user.id,
+        gym_id=user.gym_id,
+        action=ACTION_PASSWORD_CHANGED,
+        details={"via": "reset_token"},
+    )
 
     db.commit()
 
@@ -208,6 +245,13 @@ def change_password(
         raise HTTPException(status_code=400, detail="Senha atual incorreta")
 
     user.password = hash_password(new_password)
+    record_audit_event(
+        db,
+        actor_user_id=user.id,
+        gym_id=user.gym_id,
+        action=ACTION_PASSWORD_CHANGED,
+        details={"via": "authenticated_change"},
+    )
 
     db.commit()
 

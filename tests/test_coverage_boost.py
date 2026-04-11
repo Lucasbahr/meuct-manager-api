@@ -10,7 +10,13 @@ def test_health_endpoint(client):
 def test_admin_set_user_role_success(client, db, admin_token):
     from app.models.user import User
 
-    target = User(email="role@test.com", password="x", role="ALUNO", is_verified=True)
+    target = User(
+        gym_id=1,
+        email="role@test.com",
+        password="x",
+        role="ALUNO",
+        is_verified=True,
+    )
     db.add(target)
     db.commit()
 
@@ -20,7 +26,7 @@ def test_admin_set_user_role_success(client, db, admin_token):
         json={"email": "ROLE@Test.com", "role": "admin"},
     )
     assert response.status_code == status.HTTP_200_OK
-    assert response.json()["data"]["role"] == "ADMIN"
+    assert response.json()["data"]["role"] == "ADMIN_ACADEMIA"
 
 
 def test_admin_set_user_role_invalid_and_notfound(client, admin_token):

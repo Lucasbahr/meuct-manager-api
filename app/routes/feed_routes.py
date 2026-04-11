@@ -7,7 +7,8 @@ from jose import JWTError, jwt
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, require_admin
+from app.core.deps import get_current_user, require_academy_admin, require_gym_id
+from app.core.tenant import get_feed_gym_id
 from app.core.security import ALGORITHM, SECRET_KEY
 from app.db.deps import get_db
 from app.schemas.response import ResponseBase
@@ -47,9 +48,11 @@ def list_feed(
 ):
     user = optional_current_user(request)
     liked_by_me_user_id = user["user_id"] if user else None
+    gym_id = get_feed_gym_id(db, request, user)
 
     service = FeedService(db)
     items = service.list_feed(
+        gym_id=gym_id,
         limit=max(1, min(limit, 200)),
         offset=max(0, offset),
         liked_by_me_user_id=liked_by_me_user_id,
@@ -72,7 +75,8 @@ def get_feed_item(
     liked_by_me_user_id = user["user_id"] if user else None
 
     service = FeedService(db)
-    item = service.get_item_or_none(item_id)
+    gym_id = get_feed_gym_id(db, request, user)
+    item = service.get_item_or_none(item_id, gym_id)
     if not item:
         raise HTTPException(status_code=404, detail="Feed item not found")
 
@@ -123,10 +127,15 @@ def get_feed_item(
 def create_feed_item(
     data: FeedItemCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin),
+    current_user=Depends(require_academy_admin),
+    gym_id: int = Depends(require_gym_id),
 ):
     service = FeedService(db)
-    item = service.create_item(data, created_by_user_id=current_user["user_id"])
+    item = service.create_item(
+        data,
+        created_by_user_id=current_user["user_id"],
+        gym_id=gym_id,
+    )
     return {
         "success": True,
         "message": "Feed item criado",
@@ -158,10 +167,11 @@ def update_feed_item(
     item_id: int,
     data: FeedItemUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin),
+    current_user=Depends(require_academy_admin),
+    gym_id: int = Depends(require_gym_id),
 ):
     service = FeedService(db)
-    item = service.get_item_or_none(item_id)
+    item = service.get_item_or_none(item_id, gym_id)
     if not item:
         raise HTTPException(status_code=404, detail="Feed item not found")
     item = service.update_item(item, data)
@@ -196,9 +206,10 @@ def like_item(
     item_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
+    gym_id: int = Depends(require_gym_id),
 ):
     service = FeedService(db)
-    item = service.get_item_or_none(item_id)
+    item = service.get_item_or_none(item_id, gym_id)
     if not item:
         raise HTTPException(status_code=404, detail="Feed item not found")
 
@@ -216,8 +227,12 @@ def unlike_item(
     item_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
+    gym_id: int = Depends(require_gym_id),
 ):
     service = FeedService(db)
+    item = service.get_item_or_none(item_id, gym_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Feed item not found")
     service.unlike_item(item_id=item_id, user_id=current_user["user_id"])
     like_count = service.get_like_count(item_id)
     return {
@@ -229,10 +244,16 @@ def unlike_item(
 
 @router.get("/{item_id}/comments", response_model=ResponseBase)
 def list_comments(
+    request: Request,
     item_id: int,
     db: Session = Depends(get_db),
 ):
+    user = optional_current_user(request)
+    gym_id = get_feed_gym_id(db, request, user)
     service = FeedService(db)
+    item = service.get_item_or_none(item_id, gym_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Feed item not found")
     comments = service.list_comments(item_id)
     return {
         "success": True,
@@ -247,9 +268,10 @@ def add_comment(
     data: FeedCommentCreate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
+    gym_id: int = Depends(require_gym_id),
 ):
     service = FeedService(db)
-    item = service.get_item_or_none(item_id)
+    item = service.get_item_or_none(item_id, gym_id)
     if not item:
         raise HTTPException(status_code=404, detail="Feed item not found")
 
@@ -266,16 +288,19 @@ async def admin_upload_feed_photo(
     item_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _admin=Depends(require_academy_admin),
+    gym_id: int = Depends(require_gym_id),
 ):
     service = FeedService(db)
-    item = service.get_item_or_none(item_id)
+    item = service.get_item_or_none(item_id, gym_id)
     if not item:
         raise HTTPException(status_code=404, detail="Feed item not found")
 
     content = await file.read()
     old = item.image_path
-    item.image_path = save_feed_photo(item_id, content, file.content_type or "")
+    item.image_path = save_feed_photo(
+        gym_id, item_id, content, file.content_type or ""
+    )
     delete_feed_photo(old)
     item.updated_at = datetime.now(timezone.utc)
     db.commit()
@@ -289,10 +314,17 @@ async def admin_upload_feed_photo(
 
 @router.get("/{item_id}/photo")
 def get_feed_photo(
+    request: Request,
     item_id: int,
     db: Session = Depends(get_db),
 ):
-    item = db.query(FeedItem).filter(FeedItem.id == item_id).first()
+    user = optional_current_user(request)
+    gym_id = get_feed_gym_id(db, request, user)
+    item = (
+        db.query(FeedItem)
+        .filter(FeedItem.id == item_id, FeedItem.gym_id == gym_id)
+        .first()
+    )
     if not item or not item.image_path:
         raise HTTPException(status_code=404, detail="Foto não encontrada")
     content, media_type = get_photo_bytes(item.image_path)
