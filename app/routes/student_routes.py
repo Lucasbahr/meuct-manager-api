@@ -196,6 +196,24 @@ def students_subscription_alerts(
     }
 
 
+@router.get("/alerts", response_model=ResponseBase)
+def students_subscription_alerts(
+    _staff=Depends(require_staff),
+    db: Session = Depends(get_db),
+    gym_id: int = Depends(require_gym_id),
+):
+    raw = membership_svc.build_students_alerts(db, gym_id)
+    out = StudentsAlertsOut(
+        due_soon=[StudentAlertItem(**x) for x in raw["due_soon"]],
+        overdue=[StudentAlertItem(**x) for x in raw["overdue"]],
+    )
+    return {
+        "success": True,
+        "message": "Alertas de vencimento e atraso (mensalidades)",
+        "data": out.model_dump(),
+    }
+
+
 #  Atualiza proprio perfil
 @router.put("/me", response_model=ResponseBase)
 def update_my_profile(
