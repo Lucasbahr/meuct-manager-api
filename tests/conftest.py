@@ -95,6 +95,37 @@ def ensure_default_gym(db):
         )
         db.commit()
 
+    m = db.query(Modality).filter(Modality.name == "Muay Thai").first()
+    if not m:
+        m = Modality(name="Muay Thai")
+        db.add(m)
+        db.flush()
+    has_g = (
+        db.query(Graduation)
+        .filter(Graduation.gym_id == 1, Graduation.modality_id == m.id)
+        .first()
+    )
+    if not has_g:
+        db.add(
+            Graduation(
+                gym_id=1,
+                modality_id=m.id,
+                name="Branca",
+                level=1,
+                required_hours=Decimal("10"),
+            )
+        )
+        db.add(
+            Graduation(
+                gym_id=1,
+                modality_id=m.id,
+                name="Azul",
+                level=2,
+                required_hours=Decimal("20"),
+            )
+        )
+        db.commit()
+
 
 @pytest.fixture
 def client(db):
