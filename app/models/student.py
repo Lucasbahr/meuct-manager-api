@@ -60,8 +60,6 @@ class Student(Base):
     telefone = Column(String, nullable=True)
     endereco = Column(String, nullable=True)
 
-    modalidade = Column(String, default="Muay-Thai")
-    graduacao = Column(String, default="Branca")
     tempo_de_treino = Column(Integer, nullable=True)
     status = Column(String, default="ativo")
 

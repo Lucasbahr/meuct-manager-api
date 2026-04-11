@@ -1,18 +1,38 @@
 from datetime import date
+from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, field_validator
-from typing import Literal, Optional
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from typing import Literal, Optional, List
 import re
 
 NivelCompeticao = Literal["amador", "profissional"]
+
+
+class StudentModalityItem(BaseModel):
+    id: int
+    modality_id: int
+    modality_name: str
+    graduation_id: int
+    graduation_name: str
+    graduation_level: int
+    hours_trained: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class StudentModalityCreateBody(BaseModel):
+    student_id: int
+    modality_id: int
+    graduation_id: int
+    hours_trained: Optional[Decimal] = None
 
 
 class StudentCreate(BaseModel):
     nome: str
     email: str
     telefone: str
-    modalidade: str
-    graduacao: str
+    modality_id: Optional[int] = None
+    graduation_id: Optional[int] = None
     e_atleta: bool = False
     cartel_mma: Optional[str] = None
     cartel_jiu: Optional[str] = None
@@ -22,6 +42,13 @@ class StudentCreate(BaseModel):
     data_nascimento: Optional[date] = None
     ultima_luta_em: Optional[date] = None
     ultima_luta_modalidade: Optional[str] = None
+
+    @model_validator(mode="after")
+    def modality_pair(self):
+        a, b = self.modality_id, self.graduation_id
+        if (a is None) ^ (b is None):
+            raise ValueError("Informe modality_id e graduation_id juntos, ou nenhum")
+        return self
 
 
 class StudentUpdate(BaseModel):
@@ -58,8 +85,6 @@ class StudentUpdate(BaseModel):
 
 
 class StudentAdminUpdate(StudentUpdate):
-    modalidade: Optional[str] = None
-    graduacao: Optional[str] = None
     status: Optional[str] = None
     tempo_de_treino: Optional[int] = None
 
@@ -70,8 +95,6 @@ class StudentResponse(BaseModel):
     email: Optional[str]
     telefone: Optional[str]
     endereco: Optional[str]
-    modalidade: Optional[str]
-    graduacao: Optional[str]
     tempo_de_treino: Optional[int]
     status: Optional[str]
     e_atleta: bool
@@ -85,5 +108,6 @@ class StudentResponse(BaseModel):
     ultima_luta_modalidade: Optional[str]
     foto_url: Optional[str]
     foto_atleta_url: Optional[str]
+    modalities: List[StudentModalityItem] = []
 
     model_config = ConfigDict(from_attributes=True)

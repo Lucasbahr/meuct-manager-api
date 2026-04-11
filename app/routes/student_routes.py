@@ -2,8 +2,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from app.schemas.response import ResponseBase
 from app.core.deps import (
@@ -15,13 +16,13 @@ from app.core.deps import (
 from app.core.roles import is_staff, normalize_role
 from app.db.deps import get_db
 from app.models.student import Student
+from app.models.student_modality import StudentModality as StudentModalityRow
 from app.models.checkin import Checkin
 from app.models.user import User
 from app.schemas.student import (
     StudentCreate,
     StudentUpdate,
     StudentAdminUpdate,
-    StudentResponse,
 )
 from app.schemas.membership import StudentAlertItem, StudentsAlertsOut
 from app.services import membership_service as membership_svc
@@ -31,6 +32,7 @@ from app.services.student_photo import (
     save_student_athlete_card_photo,
     save_student_photo,
 )
+from app.services import student_modality_service as sm_svc
 
 router = APIRouter(prefix="/students", tags=["Students"])
 
@@ -47,6 +49,14 @@ def list_students(
         db.query(Student)
         .join(User, User.id == Student.user_id)
         .filter(User.gym_id == gym_id)
+        .options(
+            selectinload(Student.student_modalities).selectinload(
+                StudentModalityRow.modality
+            ),
+            selectinload(Student.student_modalities).selectinload(
+                StudentModalityRow.graduation
+            ),
+        )
     )
     if status:
         query = query.filter(Student.status == status)
@@ -55,7 +65,7 @@ def list_students(
     return {
         "success": True,
         "message": "Lista de alunos",
-        "data": [StudentResponse.model_validate(s) for s in students],
+        "data": [sm_svc.student_to_response(s).model_dump() for s in students],
     }
 
 
@@ -73,8 +83,6 @@ def create_student(
         user_id=user["user_id"],
         nome=data.nome,
         telefone=data.telefone,
-        modalidade=data.modalidade,
-        graduacao=data.graduacao,
         e_atleta=data.e_atleta,
         cartel_mma=data.cartel_mma,
         cartel_jiu=data.cartel_jiu,
@@ -90,10 +98,26 @@ def create_student(
     db.commit()
     db.refresh(student)
 
+    owner = db.query(User).filter(User.id == user["user_id"]).first()
+    if owner and owner.gym_id is not None:
+        if data.modality_id is not None and data.graduation_id is not None:
+            sm_svc.add_student_modality(
+                db,
+                owner.gym_id,
+                student_id=student.id,
+                modality_id=data.modality_id,
+                graduation_id=data.graduation_id,
+                hours_trained=Decimal("0"),
+            )
+        else:
+            sm_svc.ensure_default_enrollment(db, owner.gym_id, student.id)
+        db.commit()
+
+    loaded = sm_svc.load_student_with_modalities(db, student.id) or student
     return {
         "success": True,
         "message": "Aluno criado com sucesso",
-        "data": StudentResponse.model_validate(student),
+        "data": sm_svc.student_to_response(loaded).model_dump(),
     }
 
 
@@ -105,10 +129,11 @@ def get_my_student(user=Depends(get_current_user), db: Session = Depends(get_db)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
+    loaded = sm_svc.load_student_with_modalities(db, student.id) or student
     return {
         "success": True,
         "message": "Dados do aluno",
-        "data": StudentResponse.model_validate(student),
+        "data": sm_svc.student_to_response(loaded).model_dump(),
     }
 
 
@@ -126,13 +151,21 @@ def list_athletes_directory(
         db.query(Student)
         .join(User, User.id == Student.user_id)
         .filter(Student.e_atleta.is_(True), User.gym_id == gym_id)
+        .options(
+            selectinload(Student.student_modalities).selectinload(
+                StudentModalityRow.modality
+            ),
+            selectinload(Student.student_modalities).selectinload(
+                StudentModalityRow.graduation
+            ),
+        )
         .order_by(Student.nome.asc())
         .all()
     )
     return {
         "success": True,
         "message": "Atletas",
-        "data": [StudentResponse.model_validate(s) for s in students],
+        "data": [sm_svc.student_to_response(s).model_dump() for s in students],
     }
 
 
@@ -191,12 +224,11 @@ def update_my_profile(
     student.updated_at = datetime.now(timezone.utc)
 
     db.commit()
-    db.refresh(student)
-
+    loaded = sm_svc.load_student_with_modalities(db, student.id) or student
     return {
         "success": True,
         "message": "Perfil atualizado",
-        "data": StudentResponse.model_validate(student),
+        "data": sm_svc.student_to_response(loaded).model_dump(),
     }
 
 
@@ -224,11 +256,11 @@ async def upload_my_photo(
     delete_student_photo(old)
     student.updated_at = datetime.now(timezone.utc)
     db.commit()
-    db.refresh(student)
+    loaded = sm_svc.load_student_with_modalities(db, student.id) or student
     return {
         "success": True,
         "message": "Foto atualizada",
-        "data": StudentResponse.model_validate(student),
+        "data": sm_svc.student_to_response(loaded).model_dump(),
     }
 
 
@@ -292,11 +324,29 @@ async def admin_upload_student_athlete_card_photo(
     delete_student_photo(old)
     student.updated_at = datetime.now(timezone.utc)
     db.commit()
-    db.refresh(student)
+    loaded = sm_svc.load_student_with_modalities(db, student.id) or student
     return {
         "success": True,
         "message": "Foto do cartão do atleta atualizada",
-        "data": StudentResponse.model_validate(student),
+        "data": sm_svc.student_to_response(loaded).model_dump(),
+    }
+
+
+@router.get("/{student_id}/modalities", response_model=ResponseBase)
+def list_student_modalities_endpoint(
+    student_id: int,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+    gym_id: int = Depends(require_gym_id),
+):
+    from app.services import training_service as training_svc
+
+    training_svc.can_access_student_training(db, user, student_id, gym_id)
+    items = sm_svc.list_student_modalities_items(db, gym_id, student_id)
+    return {
+        "success": True,
+        "message": "Modalidades do aluno",
+        "data": [i.model_dump() for i in items],
     }
 
 
@@ -346,11 +396,11 @@ async def admin_upload_student_photo(
     delete_student_photo(old)
     student.updated_at = datetime.now(timezone.utc)
     db.commit()
-    db.refresh(student)
+    loaded = sm_svc.load_student_with_modalities(db, student.id) or student
     return {
         "success": True,
         "message": "Foto do aluno atualizada",
-        "data": StudentResponse.model_validate(student),
+        "data": sm_svc.student_to_response(loaded).model_dump(),
     }
 
 
@@ -386,12 +436,11 @@ def admin_update_student(
     student.updated_at = datetime.now(timezone.utc)
 
     db.commit()
-    db.refresh(student)
-
+    loaded = sm_svc.load_student_with_modalities(db, student.id) or student
     return {
         "success": True,
         "message": "Aluno atualizado",
-        "data": StudentResponse.model_validate(student),
+        "data": sm_svc.student_to_response(loaded).model_dump(),
     }
 
 

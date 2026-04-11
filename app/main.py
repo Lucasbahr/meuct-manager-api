@@ -12,6 +12,7 @@ from app.routes.marketplace_routes import router as marketplace_router
 from app.routes.stock_routes import router as stock_router
 from app.routes.membership_routes import router as membership_router
 from app.routes.reports_routes import router as reports_router
+from app.routes.student_modality_routes import router as student_modality_router
 from app.core.exceptions import http_exception_handler
 from app.db.session import SessionLocal
 from app.scripts.create_admin import ensure_admin_exists
@@ -58,3 +59,5 @@ app.include_router(stock_router)
 app.include_router(membership_router)
 
 app.include_router(reports_router)
+
+app.include_router(student_modality_router)

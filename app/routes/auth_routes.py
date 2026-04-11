@@ -155,13 +155,18 @@ def verify_email(token: str, db: Session = Depends(get_db)):
         user_id=user.id,
         nome="",
         telefone="",
-        modalidade="Muay-Thai",
-        graduacao="Branca",
         status="ativo",
     )
 
     db.add(student)
     db.commit()
+    db.refresh(student)
+
+    if user.gym_id is not None:
+        from app.services import student_modality_service as sm_svc
+
+        sm_svc.ensure_default_enrollment(db, user.gym_id, student.id)
+        db.commit()
 
     return {"success": True, "message": "Email verificado com sucesso", "data": None}
 
