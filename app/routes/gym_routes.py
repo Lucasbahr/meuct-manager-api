@@ -6,6 +6,11 @@ from app.models.gym import Gym
 from app.schemas.gym import GymCreate, GymResponse
 from app.schemas.response import ResponseBase
 from app.services.gym_storage import provision_tenant_storage
+from app.services.tenant_saas_service import (
+    allocate_unique_slug,
+    ensure_tenant_config,
+    slugify_name,
+)
 
 router = APIRouter(prefix="/gyms", tags=["Gyms"])
 
@@ -25,8 +30,11 @@ def create_gym(data: GymCreate, db: Session = Depends(get_db)):
     name = (data.name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Gym name is required")
-    g = Gym(name=name)
+    slug = allocate_unique_slug(db, slugify_name(name))
+    g = Gym(name=name, slug=slug)
     db.add(g)
+    db.flush()
+    ensure_tenant_config(db, g.id)
     db.commit()
     db.refresh(g)
     provision_tenant_storage(g.id)

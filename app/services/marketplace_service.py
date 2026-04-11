@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 from collections import defaultdict
 from decimal import Decimal
 from typing import Any, List, Optional
+from urllib.parse import quote, urlencode
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
@@ -18,7 +20,13 @@ from app.models.marketplace import (
 )
 from app.models.student import Student
 from app.models.user import User
+from app.core import payment_credentials_crypto as pcc
+from app.core.security import (
+    create_mercadopago_oauth_state,
+    decode_mercadopago_oauth_state,
+)
 from app.services import marketplace_payment as pay
+from app.services.payment_credentials import decrypt_row as payment_decrypt_row
 from app.services import commission_service as commission_svc
 from app.services import stock_service as stock_svc
 
@@ -308,6 +316,7 @@ def upsert_payment_settings(
     client_secret: Optional[str],
     access_token: Optional[str],
     refresh_token: Optional[str],
+    public_key: Optional[str] = None,
 ) -> GymPaymentSettings:
     if provider not in (PROVIDER_PAYPAL, PROVIDER_MERCADOPAGO):
         raise HTTPException(status_code=400, detail="provider inválido")
@@ -325,13 +334,15 @@ def upsert_payment_settings(
         db.add(row)
 
     if client_id is not None:
-        row.client_id = client_id
+        row.client_id = pcc.encrypt_credential(client_id)
     if client_secret is not None:
-        row.client_secret = client_secret
+        row.client_secret = pcc.encrypt_credential(client_secret)
     if access_token is not None:
-        row.access_token = access_token
+        row.access_token = pcc.encrypt_credential(access_token)
     if refresh_token is not None:
-        row.refresh_token = refresh_token
+        row.refresh_token = pcc.encrypt_credential(refresh_token)
+    if public_key is not None:
+        row.public_key = public_key.strip() if public_key else None
 
     db.flush()
     db.refresh(row)
@@ -343,10 +354,12 @@ def payment_settings_to_out(row: GymPaymentSettings) -> dict[str, Any]:
         "id": row.id,
         "gym_id": row.gym_id,
         "provider": row.provider,
-        "client_id": row.client_id,
+        "client_id_hint": pcc.mask_credential_suffix(row.client_id),
+        "credentials_encrypted_at_rest": pcc.fernet_key_configured(),
         "has_client_secret": bool(row.client_secret),
         "has_access_token": bool(row.access_token),
         "has_refresh_token": bool(row.refresh_token),
+        "has_public_key": bool(row.public_key),
     }
 
 
@@ -490,9 +503,10 @@ def checkout_order(
             detail="Academia não configurou este meio de pagamento",
         )
 
+    creds = payment_decrypt_row(settings)
     if provider == PROVIDER_PAYPAL:
         url, ext_id = pay.paypal_create_checkout(
-            settings, order, return_url, cancel_url
+            creds, order, return_url, cancel_url
         )
     else:
         items = list(order.items)
@@ -500,7 +514,7 @@ def checkout_order(
             if it.product is None:
                 db.refresh(it, ["product"])
         url, ext_id = pay.mercadopago_create_preference(
-            settings, order, items, return_url, cancel_url
+            creds, order, items, return_url, cancel_url
         )
 
     order.payment_provider = provider
@@ -598,7 +612,8 @@ def handle_mercadopago_webhook(
         return {"ok": False, "error": "Mercado Pago não configurado"}
 
     pid = str(payment_id)
-    data = pay.mercadopago_fetch_payment(settings, pid)
+    creds = payment_decrypt_row(settings)
+    data = pay.mercadopago_fetch_payment(creds, pid)
     if data.get("status") != "approved":
         return {"ok": True, "ignored": True, "status": data.get("status")}
 
@@ -627,3 +642,178 @@ def handle_mercadopago_webhook(
     except HTTPException as e:
         return {"ok": False, "detail": e.detail}
     return {"ok": True, "paid": changed, "order_id": order.id}
+
+
+def _validate_mercadopago_oauth_next_url(next_url: Optional[str]) -> None:
+    if not next_url:
+        return
+    prefix = os.getenv("MERCADOPAGO_OAUTH_SUCCESS_URL_PREFIX", "").strip()
+    if not prefix:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Para usar next_url, defina MERCADOPAGO_OAUTH_SUCCESS_URL_PREFIX "
+                "(ex.: https://app.suaempresa.com)."
+            ),
+        )
+    if not next_url.startswith(prefix):
+        raise HTTPException(
+            status_code=400,
+            detail="next_url deve começar com MERCADOPAGO_OAUTH_SUCCESS_URL_PREFIX",
+        )
+
+
+def _mercadopago_oauth_redirect_failure(
+    next_url: Optional[str], message: str
+) -> Optional[str]:
+    if not next_url:
+        return None
+    q = quote(message[:500], safe="")
+    sep = "&" if "?" in next_url else "?"
+    return f"{next_url}{sep}mp_oauth=error&mp_oauth_msg={q}"
+
+
+def _mercadopago_oauth_redirect_success(next_url: Optional[str]) -> Optional[str]:
+    if not next_url:
+        return None
+    sep = "&" if "?" in next_url else "?"
+    return f"{next_url}{sep}mp_oauth=ok"
+
+
+def mercadopago_oauth_authorization_url(
+    gym_id: int,
+    next_url: Optional[str] = None,
+) -> str:
+    """
+    URL para o admin abrir no navegador e autorizar a conta Mercado Pago da academia.
+    Credenciais da *aplicação* ficam em env (não são da academia).
+    """
+    client_id = os.getenv("MERCADOPAGO_OAUTH_CLIENT_ID", "").strip()
+    redirect_uri = os.getenv("MERCADOPAGO_OAUTH_REDIRECT_URI", "").strip()
+    if not client_id or not redirect_uri:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Mercado Pago OAuth não configurado no servidor. "
+                "Defina MERCADOPAGO_OAUTH_CLIENT_ID e MERCADOPAGO_OAUTH_REDIRECT_URI."
+            ),
+        )
+    _validate_mercadopago_oauth_next_url(next_url)
+    try:
+        state = create_mercadopago_oauth_state(gym_id, next_url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    auth_base = os.getenv(
+        "MERCADOPAGO_OAUTH_AUTH_BASE", "https://auth.mercadopago.com"
+    ).rstrip("/")
+    params = {
+        "client_id": client_id,
+        "response_type": "code",
+        "platform_id": "mp",
+        "state": state,
+        "redirect_uri": redirect_uri,
+    }
+    return f"{auth_base}/authorization?{urlencode(params)}"
+
+
+def mercadopago_oauth_handle_callback(
+    db: Session,
+    code: Optional[str],
+    state: Optional[str],
+    oauth_error: Optional[str],
+) -> dict[str, Any]:
+    """Troca o code por tokens e grava em GymPaymentSettings (mercado_pago)."""
+    next_url: Optional[str] = None
+    if state:
+        try:
+            decoded_early = decode_mercadopago_oauth_state(state)
+            next_url = decoded_early.get("next")
+        except ValueError:
+            next_url = None
+
+    if oauth_error:
+        msg = oauth_error
+        return {
+            "ok": False,
+            "message": msg,
+            "redirect": _mercadopago_oauth_redirect_failure(next_url, msg),
+        }
+
+    if not code or not state:
+        msg = "Parâmetros code ou state ausentes"
+        return {
+            "ok": False,
+            "message": msg,
+            "redirect": _mercadopago_oauth_redirect_failure(next_url, msg),
+        }
+
+    try:
+        decoded = decode_mercadopago_oauth_state(state)
+        next_url = decoded.get("next")
+        gym_id = decoded["gym_id"]
+    except ValueError as e:
+        return {
+            "ok": False,
+            "message": str(e),
+            "redirect": None,
+        }
+
+    client_id = os.getenv("MERCADOPAGO_OAUTH_CLIENT_ID", "").strip()
+    client_secret = os.getenv("MERCADOPAGO_OAUTH_CLIENT_SECRET", "").strip()
+    redirect_uri = os.getenv("MERCADOPAGO_OAUTH_REDIRECT_URI", "").strip()
+    if not client_id or not client_secret or not redirect_uri:
+        msg = "Servidor sem credenciais OAuth do Mercado Pago configuradas"
+        return {
+            "ok": False,
+            "message": msg,
+            "redirect": _mercadopago_oauth_redirect_failure(next_url, msg),
+        }
+
+    test_token = os.getenv("MERCADOPAGO_OAUTH_TEST_TOKEN", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    try:
+        data = pay.mercadopago_oauth_exchange_code(
+            client_id,
+            client_secret,
+            code,
+            redirect_uri,
+            test_token=test_token,
+        )
+    except HTTPException as he:
+        detail = he.detail
+        msg = detail if isinstance(detail, str) else "Falha ao obter token do Mercado Pago"
+        return {
+            "ok": False,
+            "message": msg,
+            "redirect": _mercadopago_oauth_redirect_failure(next_url, msg),
+        }
+
+    access = data.get("access_token")
+    refresh = data.get("refresh_token")
+    uid = data.get("user_id")
+    if not access:
+        msg = "Resposta do Mercado Pago sem access_token"
+        return {
+            "ok": False,
+            "message": msg,
+            "redirect": _mercadopago_oauth_redirect_failure(next_url, msg),
+        }
+
+    hint = str(uid) if uid is not None else None
+    upsert_payment_settings(
+        db,
+        gym_id,
+        provider=PROVIDER_MERCADOPAGO,
+        client_id=hint,
+        client_secret=None,
+        access_token=access,
+        refresh_token=refresh if refresh else None,
+    )
+    return {
+        "ok": True,
+        "message": "",
+        "redirect": _mercadopago_oauth_redirect_success(next_url),
+    }

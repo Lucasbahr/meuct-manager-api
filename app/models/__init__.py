@@ -1,4 +1,6 @@
-from .gym import Gym  # noqa: F401
+from .gym import Gym, Tenant  # noqa: F401
+from .gym_schedule import GymClass, GymScheduleSlot  # noqa: F401
+from .tenant_config import TenantConfig  # noqa: F401
 from .user import User  # noqa: F401
 from .student import Student  # noqa: F401
 from .checkin import Checkin  # noqa: F401

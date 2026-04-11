@@ -89,6 +89,13 @@ class PaymentConfigCreate(BaseModel):
     client_secret: Optional[str] = None
     access_token: Optional[str] = None
     refresh_token: Optional[str] = None
+    public_key: Optional[str] = None
+
+
+class MercadoPagoOAuthStart(BaseModel):
+    """Opcional: URL do seu front para redirecionar após conectar (com prefixo permitido em env)."""
+
+    next_url: Optional[HttpUrl] = None
 
 
 class PaymentConfigOut(BaseModel):
@@ -97,10 +104,12 @@ class PaymentConfigOut(BaseModel):
     id: int
     gym_id: int
     provider: str
-    client_id: Optional[str] = None
+    client_id_hint: Optional[str] = None
+    credentials_encrypted_at_rest: bool = False
     has_client_secret: bool = False
     has_access_token: bool = False
     has_refresh_token: bool = False
+    has_public_key: bool = False
 
 
 class OrderItemCreate(BaseModel):

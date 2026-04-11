@@ -1,6 +1,8 @@
+from html import escape
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_academy_admin, require_gym_id
@@ -9,6 +11,7 @@ from app.db.deps import get_db
 from app.schemas.marketplace import (
     CategoryCreate,
     CheckoutRequest,
+    MercadoPagoOAuthStart,
     OrderCreate,
     PaymentConfigCreate,
     ProductCreate,
@@ -128,6 +131,7 @@ def admin_payment_config(
         client_secret=body.client_secret,
         access_token=body.access_token,
         refresh_token=body.refresh_token,
+        public_key=body.public_key,
     )
     db.commit()
     return {
@@ -135,6 +139,44 @@ def admin_payment_config(
         "message": "Configuração de pagamento salva",
         "data": msvc.payment_settings_to_out(row),
     }
+
+
+@router.post("/payment/mercado-pago/oauth/start", response_model=ResponseBase)
+def mercadopago_oauth_start(
+    body: MercadoPagoOAuthStart = MercadoPagoOAuthStart(),
+    _admin=Depends(require_academy_admin),
+    gym_id: int = Depends(require_gym_id),
+):
+    next_u = str(body.next_url) if body.next_url else None
+    url = msvc.mercadopago_oauth_authorization_url(gym_id, next_u)
+    return {
+        "success": True,
+        "message": "Abra authorization_url no navegador para conectar o Mercado Pago",
+        "data": {"authorization_url": url},
+    }
+
+
+@router.get("/payment/mercado-pago/oauth/callback")
+def mercadopago_oauth_callback(
+    db: Session = Depends(get_db),
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
+    error_description: Optional[str] = Query(None),
+):
+    oauth_err = error or error_description
+    result = msvc.mercadopago_oauth_handle_callback(db, code, state, oauth_err)
+    db.commit()
+    if result.get("redirect"):
+        return RedirectResponse(result["redirect"], status_code=302)
+    if result["ok"]:
+        return HTMLResponse(
+            "<html><body>Mercado Pago conectado à academia. Você pode fechar esta aba.</body></html>"
+        )
+    return HTMLResponse(
+        f"<html><body>Erro: {escape(result['message'])}</body></html>",
+        status_code=400,
+    )
 
 
 # --- Aluno / catálogo ---
