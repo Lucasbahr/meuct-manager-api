@@ -20,6 +20,7 @@ from app.schemas.student import (
 from app.services.student_photo import (
     delete_student_photo,
     get_photo_bytes,
+    save_student_athlete_card_photo,
     save_student_photo,
 )
 
@@ -98,6 +99,28 @@ def get_my_student(user=Depends(get_current_user), db: Session = Depends(get_db)
     }
 
 
+@router.get("/athletes", response_model=ResponseBase)
+def list_athletes_directory(
+    _user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Lista alunos com `e_atleta=True` para a aba **Atletas** do app.
+    Qualquer usuário autenticado (aluno ou admin); não expõe edição.
+    """
+    students = (
+        db.query(Student)
+        .filter(Student.e_atleta.is_(True))
+        .order_by(Student.nome.asc())
+        .all()
+    )
+    return {
+        "success": True,
+        "message": "Atletas",
+        "data": [StudentResponse.model_validate(s) for s in students],
+    }
+
+
 #  Atualiza proprio perfil
 @router.put("/me", response_model=ResponseBase)
 def update_my_profile(
@@ -114,7 +137,14 @@ def update_my_profile(
 
     updatable = (
         set(Student.__table__.columns.keys())
-        - {"id", "user_id", "created_at", "updated_at", "foto_path"}
+        - {
+            "id",
+            "user_id",
+            "created_at",
+            "updated_at",
+            "foto_path",
+            "foto_atleta_path",
+        }
     )
     update_data = data.model_dump(exclude_unset=True)
     if not update_data:
@@ -176,6 +206,48 @@ def get_my_photo(
         raise HTTPException(status_code=404, detail="Foto não encontrada")
     content, media_type = get_photo_bytes(student.foto_path)
     return Response(content=content, media_type=media_type)
+
+
+@router.get("/{student_id}/athlete-card/photo")
+def get_student_athlete_card_photo(
+    student_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student or not student.foto_atleta_path:
+        raise HTTPException(status_code=404, detail="Foto do cartão não encontrada")
+    if user.get("role") != "ADMIN":
+        if not student.e_atleta:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    content, media_type = get_photo_bytes(student.foto_atleta_path)
+    return Response(content=content, media_type=media_type)
+
+
+@router.post("/{student_id}/athlete-card/photo", response_model=ResponseBase)
+async def admin_upload_student_athlete_card_photo(
+    student_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    content = await file.read()
+    old = student.foto_atleta_path
+    student.foto_atleta_path = save_student_athlete_card_photo(
+        student.id, content, file.content_type or ""
+    )
+    delete_student_photo(old)
+    student.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(student)
+    return {
+        "success": True,
+        "message": "Foto do cartão do atleta atualizada",
+        "data": StudentResponse.model_validate(student),
+    }
 
 
 @router.get("/{student_id}/photo")
@@ -271,8 +343,9 @@ def admin_delete_student(
         synchronize_session=False
     )
 
-    # Remove stored photo (local or GCS depending on env).
+    # Remove stored photos (local or GCS depending on env).
     delete_student_photo(student.foto_path)
+    delete_student_photo(student.foto_atleta_path)
 
     user = db.query(User).filter(User.id == student.user_id).first()
     db.delete(student)

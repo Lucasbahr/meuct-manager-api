@@ -9,6 +9,44 @@ def test_get_students(client, admin_token):
     assert isinstance(data["data"], list)
 
 
+def test_list_athletes_requires_auth(client):
+    r = client.get("/students/athletes")
+    assert r.status_code in (401, 403)
+
+
+def test_list_athletes_for_aluno(client, user_token, user, admin_user, db):
+    from app.models.student import Student
+
+    db.add(
+        Student(
+            user_id=user.id,
+            nome="Eu Atleta",
+            telefone="+5511999999999",
+            e_atleta=True,
+        )
+    )
+    db.add(
+        Student(
+            user_id=admin_user.id,
+            nome="Admin Nao Atleta",
+            telefone="+5511888888888",
+            e_atleta=False,
+        )
+    )
+    db.commit()
+
+    r = client.get(
+        "/students/athletes",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["success"] is True
+    nomes = {x["nome"] for x in body["data"]}
+    assert "Eu Atleta" in nomes
+    assert "Admin Nao Atleta" not in nomes
+
+
 def test_get_student_not_found(client, admin_token):
     response = client.get(
         "/students/me/9999", headers={"Authorization": f"Bearer {admin_token}"}
@@ -241,6 +279,90 @@ def test_get_other_student_photo_forbidden(client, user_token, db):
 
     r = client.get(
         f"/students/{other.id}/photo",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert r.status_code == 403
+
+
+def test_admin_upload_athlete_card_and_aluno_can_get(
+    client, admin_token, user_token, admin_user, db
+):
+    from app.models.student import Student
+
+    athlete_stu = Student(
+        user_id=admin_user.id,
+        nome="Atleta Card",
+        telefone="+5511777777777",
+        e_atleta=True,
+    )
+    db.add(athlete_stu)
+    db.commit()
+    db.refresh(athlete_stu)
+
+    up = client.post(
+        f"/students/{athlete_stu.id}/athlete-card/photo",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        files={"file": ("c.jpg", _MIN_JPEG, "image/jpeg")},
+    )
+    assert up.status_code == 200
+    data = up.json()["data"]
+    assert data["foto_atleta_url"] == f"/students/{athlete_stu.id}/athlete-card/photo"
+
+    get = client.get(
+        f"/students/{athlete_stu.id}/athlete-card/photo",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert get.status_code == 200
+    assert get.content == _MIN_JPEG
+
+
+def test_upload_athlete_card_requires_admin(client, user_token, db):
+    from app.models.student import Student
+
+    st = Student(
+        user_id=1,
+        nome="A",
+        telefone="+5511999999999",
+        e_atleta=True,
+    )
+    db.add(st)
+    db.commit()
+    db.refresh(st)
+
+    r = client.post(
+        f"/students/{st.id}/athlete-card/photo",
+        headers={"Authorization": f"Bearer {user_token}"},
+        files={"file": ("c.jpg", _MIN_JPEG, "image/jpeg")},
+    )
+    assert r.status_code == 403
+
+
+def test_get_athlete_card_non_atleta_forbidden(
+    client, admin_token, user_token, admin_user, db
+):
+    from app.models.student import Student
+
+    athlete_stu = Student(
+        user_id=admin_user.id,
+        nome="X",
+        telefone="+5511666666666",
+        e_atleta=True,
+    )
+    db.add(athlete_stu)
+    db.commit()
+    db.refresh(athlete_stu)
+
+    client.post(
+        f"/students/{athlete_stu.id}/athlete-card/photo",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        files={"file": ("c.jpg", _MIN_JPEG, "image/jpeg")},
+    )
+
+    athlete_stu.e_atleta = False
+    db.commit()
+
+    r = client.get(
+        f"/students/{athlete_stu.id}/athlete-card/photo",
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert r.status_code == 403

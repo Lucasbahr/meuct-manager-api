@@ -31,9 +31,23 @@ def _create_token(data: dict, expires_delta: timedelta, token_type: str):
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-#  ACCESS TOKEN (login)
+def _access_token_expire_delta() -> timedelta:
+    """
+    TTL do JWT de login (access). Padrão: 120 minutos (2 horas).
+    Defina ACCESS_TOKEN_EXPIRE_MINUTES no .env (ex.: 60, 120). Entre 5 e 10080 (7 dias).
+    """
+    raw = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "120")
+    try:
+        minutes = int(raw)
+    except ValueError:
+        minutes = 120
+    minutes = max(5, min(minutes, 10080))
+    return timedelta(minutes=minutes)
+
+
+#  ACCESS TOKEN (login) — JWT com claim `exp`; após o prazo, decode falha.
 def create_access_token(data: dict):
-    return _create_token(data, timedelta(hours=2), "access")
+    return _create_token(data, _access_token_expire_delta(), "access")
 
 
 #  REFRESH TOKEN (sessão em background)
