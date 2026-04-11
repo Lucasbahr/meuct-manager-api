@@ -18,6 +18,7 @@ from app.schemas.response import ResponseBase
 from app.schemas.tenant_saas import (
     GraduacaoCreate,
     ModalidadeCreate,
+    TenantBrandingPatch,
     TenantCreate,
 )
 from app.services import tenant_saas_service as ts_svc
@@ -83,6 +84,25 @@ def get_tenant_by_slug_public(slug: str, db: Session = Depends(get_db)):
     return {
         "success": True,
         "message": "Dados públicos do tenant",
+        "data": ts_svc.tenant_public_dict(g),
+    }
+
+
+@router.patch("/tenant/branding", response_model=ResponseBase)
+def patch_tenant_branding(
+    body: TenantBrandingPatch,
+    _admin=Depends(require_academy_admin),
+    db: Session = Depends(get_db),
+    gym_id: int = Depends(require_gym_id),
+):
+    """Admin academia: cores, logo e texto público consumidos pelo app."""
+    patch = body.model_dump(exclude_unset=True)
+    g = ts_svc.update_gym_branding(db, gym_id, patch)
+    db.commit()
+    db.refresh(g)
+    return {
+        "success": True,
+        "message": "Aparência da academia atualizada",
         "data": ts_svc.tenant_public_dict(g),
     }
 

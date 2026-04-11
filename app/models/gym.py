@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -22,6 +22,7 @@ class Gym(Base):
     cor_primaria = Column(String(16), nullable=True)
     cor_secundaria = Column(String(16), nullable=True)
     cor_background = Column(String(16), nullable=True)
+    public_description = Column(Text, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
 
     created_at = Column(DateTime(timezone=True), default=now_utc)

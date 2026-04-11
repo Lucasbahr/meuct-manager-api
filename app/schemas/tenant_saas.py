@@ -29,7 +29,22 @@ class TenantPublicOut(BaseModel):
     cor_primaria: Optional[str] = None
     cor_secundaria: Optional[str] = None
     cor_background: Optional[str] = None
+    public_description: Optional[str] = None
     ativo: bool
+
+
+class TenantBrandingPatch(BaseModel):
+    """Admin academia: atualiza aparência exibida no app (white-label)."""
+
+    public_description: Optional[str] = Field(
+        default=None,
+        max_length=16000,
+        description="Texto exibido em Sobre a academia no app",
+    )
+    cor_primaria: Optional[str] = Field(default=None, max_length=16)
+    cor_secundaria: Optional[str] = Field(default=None, max_length=16)
+    cor_background: Optional[str] = Field(default=None, max_length=16)
+    logo_url: Optional[str] = Field(default=None, max_length=1024)
 
 
 class TenantConfigOut(BaseModel):
