@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
 from app.schemas.response import ResponseBase
-from app.core.deps import get_current_user, require_admin
+from app.core.deps import (
+    get_current_user,
+    require_academy_admin,
+    require_staff,
+    require_gym_id,
+)
+from app.core.roles import is_staff, normalize_role
 from app.db.deps import get_db
 from app.models.student import Student
 from app.models.checkin import Checkin
@@ -17,6 +23,8 @@ from app.schemas.student import (
     StudentAdminUpdate,
     StudentResponse,
 )
+from app.schemas.membership import StudentAlertItem, StudentsAlertsOut
+from app.services import membership_service as membership_svc
 from app.services.student_photo import (
     delete_student_photo,
     get_photo_bytes,
@@ -31,10 +39,15 @@ router = APIRouter(prefix="/students", tags=["Students"])
 @router.get("/", response_model=ResponseBase)
 def list_students(
     status: Optional[str] = None,
-    user=Depends(require_admin),
+    user=Depends(require_staff),
     db: Session = Depends(get_db),
+    gym_id: int = Depends(require_gym_id),
 ):
-    query = db.query(Student)
+    query = (
+        db.query(Student)
+        .join(User, User.id == Student.user_id)
+        .filter(User.gym_id == gym_id)
+    )
     if status:
         query = query.filter(Student.status == status)
 
@@ -103,6 +116,7 @@ def get_my_student(user=Depends(get_current_user), db: Session = Depends(get_db)
 def list_athletes_directory(
     _user=Depends(get_current_user),
     db: Session = Depends(get_db),
+    gym_id: int = Depends(require_gym_id),
 ):
     """
     Lista alunos com `e_atleta=True` para a aba **Atletas** do app.
@@ -110,7 +124,8 @@ def list_athletes_directory(
     """
     students = (
         db.query(Student)
-        .filter(Student.e_atleta.is_(True))
+        .join(User, User.id == Student.user_id)
+        .filter(Student.e_atleta.is_(True), User.gym_id == gym_id)
         .order_by(Student.nome.asc())
         .all()
     )
@@ -118,6 +133,24 @@ def list_athletes_directory(
         "success": True,
         "message": "Atletas",
         "data": [StudentResponse.model_validate(s) for s in students],
+    }
+
+
+@router.get("/alerts", response_model=ResponseBase)
+def students_subscription_alerts(
+    _staff=Depends(require_staff),
+    db: Session = Depends(get_db),
+    gym_id: int = Depends(require_gym_id),
+):
+    raw = membership_svc.build_students_alerts(db, gym_id)
+    out = StudentsAlertsOut(
+        due_soon=[StudentAlertItem(**x) for x in raw["due_soon"]],
+        overdue=[StudentAlertItem(**x) for x in raw["overdue"]],
+    )
+    return {
+        "success": True,
+        "message": "Alertas de vencimento e atraso (mensalidades)",
+        "data": out.model_dump(),
     }
 
 
@@ -178,10 +211,15 @@ async def upload_my_photo(
     )
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    owner = db.query(User).filter(User.id == student.user_id).first()
+    if not owner or owner.gym_id is None:
+        raise HTTPException(
+            status_code=400, detail="Usuário sem gym associado; não é possível enviar foto"
+        )
     content = await file.read()
     old = student.foto_path
     student.foto_path = save_student_photo(
-        student.id, content, file.content_type or ""
+        owner.gym_id, student.id, content, file.content_type or ""
     )
     delete_student_photo(old)
     student.updated_at = datetime.now(timezone.utc)
@@ -213,11 +251,17 @@ def get_student_athlete_card_photo(
     student_id: int,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
+    gym_id: int = Depends(require_gym_id),
 ):
-    student = db.query(Student).filter(Student.id == student_id).first()
+    student = (
+        db.query(Student)
+        .join(User, User.id == Student.user_id)
+        .filter(Student.id == student_id, User.gym_id == gym_id)
+        .first()
+    )
     if not student or not student.foto_atleta_path:
         raise HTTPException(status_code=404, detail="Foto do cartão não encontrada")
-    if user.get("role") != "ADMIN":
+    if not is_staff(normalize_role(user.get("role"))):
         if not student.e_atleta:
             raise HTTPException(status_code=403, detail="Not authorized")
     content, media_type = get_photo_bytes(student.foto_atleta_path)
@@ -229,15 +273,21 @@ async def admin_upload_student_athlete_card_photo(
     student_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _staff=Depends(require_staff),
+    gym_id: int = Depends(require_gym_id),
 ):
-    student = db.query(Student).filter(Student.id == student_id).first()
+    student = (
+        db.query(Student)
+        .join(User, User.id == Student.user_id)
+        .filter(Student.id == student_id, User.gym_id == gym_id)
+        .first()
+    )
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     content = await file.read()
     old = student.foto_atleta_path
     student.foto_atleta_path = save_student_athlete_card_photo(
-        student.id, content, file.content_type or ""
+        gym_id, student.id, content, file.content_type or ""
     )
     delete_student_photo(old)
     student.updated_at = datetime.now(timezone.utc)
@@ -255,13 +305,18 @@ def get_student_photo(
     student_id: int,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
+    gym_id: int = Depends(require_gym_id),
 ):
-    student = db.query(Student).filter(Student.id == student_id).first()
+    student = (
+        db.query(Student)
+        .join(User, User.id == Student.user_id)
+        .filter(Student.id == student_id, User.gym_id == gym_id)
+        .first()
+    )
     if not student or not student.foto_path:
         raise HTTPException(status_code=404, detail="Foto não encontrada")
-    if user.get("role") != "ADMIN":
-        mine = db.query(Student).filter(Student.user_id == user["user_id"]).first()
-        if not mine or mine.id != student_id:
+    if not is_staff(normalize_role(user.get("role"))):
+        if student.user_id != user["user_id"]:
             raise HTTPException(status_code=403, detail="Not authorized")
     content, media_type = get_photo_bytes(student.foto_path)
     return Response(content=content, media_type=media_type)
@@ -272,15 +327,21 @@ async def admin_upload_student_photo(
     student_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _staff=Depends(require_staff),
+    gym_id: int = Depends(require_gym_id),
 ):
-    student = db.query(Student).filter(Student.id == student_id).first()
+    student = (
+        db.query(Student)
+        .join(User, User.id == Student.user_id)
+        .filter(Student.id == student_id, User.gym_id == gym_id)
+        .first()
+    )
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     content = await file.read()
     old = student.foto_path
     student.foto_path = save_student_photo(
-        student.id, content, file.content_type or ""
+        gym_id, student.id, content, file.content_type or ""
     )
     delete_student_photo(old)
     student.updated_at = datetime.now(timezone.utc)
@@ -299,9 +360,15 @@ def admin_update_student(
     student_id: int,
     data: StudentAdminUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin),
+    current_user=Depends(require_staff),
+    gym_id: int = Depends(require_gym_id),
 ):
-    student = db.query(Student).filter(Student.id == student_id).first()
+    student = (
+        db.query(Student)
+        .join(User, User.id == Student.user_id)
+        .filter(Student.id == student_id, User.gym_id == gym_id)
+        .first()
+    )
 
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -332,9 +399,15 @@ def admin_update_student(
 def admin_delete_student(
     student_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin),
+    current_user=Depends(require_academy_admin),
+    gym_id: int = Depends(require_gym_id),
 ):
-    student = db.query(Student).filter(Student.id == student_id).first()
+    student = (
+        db.query(Student)
+        .join(User, User.id == Student.user_id)
+        .filter(Student.id == student_id, User.gym_id == gym_id)
+        .first()
+    )
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 

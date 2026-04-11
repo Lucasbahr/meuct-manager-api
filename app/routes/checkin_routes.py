@@ -7,9 +7,12 @@ from typing import Optional
 
 from app.schemas.response import ResponseBase
 from app.db.deps import get_db
-from app.core.deps import get_current_user, require_admin
+from app.core.deps import get_current_user, require_staff, require_gym_id
+from app.core.roles import is_staff
 from app.models.student import Student
 from app.models.checkin import Checkin
+from app.models.user import User
+from app.services.audit_service import record_audit_event, ACTION_CHECKIN
 
 router = APIRouter(prefix="/checkin", tags=["Checkin"])
 
@@ -20,13 +23,20 @@ def do_checkin(
     user=Depends(get_current_user),
     db: Session = Depends(get_db),
     student_id: Optional[int] = Body(default=None, embed=True),
+    gym_id: int = Depends(require_gym_id),
 ):
     if student_id is not None:
-        if user.get("role") != "ADMIN":
+        if not is_staff(user.get("role")):
             raise HTTPException(
-                status_code=403, detail="Apenas administradores podem informar student_id"
+                status_code=403,
+                detail="Apenas equipe da academia pode informar student_id",
             )
-        student = db.query(Student).filter(Student.id == student_id).first()
+        student = (
+            db.query(Student)
+            .join(User, User.id == Student.user_id)
+            .filter(Student.id == student_id, User.gym_id == gym_id)
+            .first()
+        )
         if not student:
             raise HTTPException(status_code=404, detail="Student not found")
     else:
@@ -50,6 +60,18 @@ def do_checkin(
     checkin = Checkin(student_id=student.id)
 
     db.add(checkin)
+    record_audit_event(
+        db,
+        actor_user_id=user["user_id"],
+        gym_id=gym_id,
+        action=ACTION_CHECKIN,
+        target_type="student",
+        target_id=student.id,
+        details={
+            "student_user_id": student.user_id,
+            "por_equipe": student_id is not None,
+        },
+    )
     db.commit()
 
     return {"success": True, "message": "Check-in realizado com sucesso", "data": None}
@@ -85,6 +107,8 @@ def my_summary(user=Depends(get_current_user), db: Session = Depends(get_db)):
 @router.get("/me/history", response_model=ResponseBase)
 def my_history(user=Depends(get_current_user), db: Session = Depends(get_db)):
     student = db.query(Student).filter(Student.user_id == user["user_id"]).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
 
     checkins = (
         db.query(
@@ -105,10 +129,16 @@ def my_history(user=Depends(get_current_user), db: Session = Depends(get_db)):
 
 #  RANKING (ADMIN)
 @router.get("/ranking", response_model=ResponseBase)
-def ranking(user=Depends(require_admin), db: Session = Depends(get_db)):
+def ranking(
+    user=Depends(require_staff),
+    db: Session = Depends(get_db),
+    gym_id: int = Depends(require_gym_id),
+):
     results = (
         db.query(Student.nome, func.count(Checkin.id).label("total"))
+        .join(User, User.id == Student.user_id)
         .join(Checkin, Checkin.student_id == Student.id)
+        .filter(User.gym_id == gym_id)
         .group_by(Student.id)
         .order_by(func.count(Checkin.id).desc())
         .all()

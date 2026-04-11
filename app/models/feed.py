@@ -23,6 +23,7 @@ class FeedItem(Base):
     __tablename__ = "feed_items"
 
     id = Column(Integer, primary_key=True, index=True)
+    gym_id = Column(Integer, ForeignKey("gyms.id"), nullable=False, index=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
     tipo = Column(String(32), nullable=False)  # "luta" | "evento" | "graduacao"

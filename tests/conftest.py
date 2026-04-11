@@ -47,6 +47,15 @@ def db():
     connection.close()
 
 
+@pytest.fixture(autouse=True)
+def ensure_default_gym(db):
+    from app.models.gym import Gym
+
+    if db.query(Gym).filter(Gym.id == 1).first() is None:
+        db.add(Gym(id=1, name="Test Gym"))
+        db.commit()
+
+
 @pytest.fixture
 def client(db):
     def override_get_db():
@@ -70,7 +79,11 @@ def user(db):
 @pytest.fixture
 def admin_user(db):
     return create_user(
-        db=db, email="admin@test.com", password="123456", role="ADMIN", is_verified=True
+        db=db,
+        email="admin@test.com",
+        password="123456",
+        role="ADMIN_ACADEMIA",
+        is_verified=True,
     )
 
 

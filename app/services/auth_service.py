@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 import os
 from fastapi import HTTPException
 from app.models.user import User
+from app.models.gym import Gym
+from app.services.user_service import get_user_by_email
 from app.core.security import hash_password, verify_password
 from app.core.security import _create_token
 from datetime import timedelta
@@ -9,15 +11,21 @@ from app.services.email_service import send_email
 from app.core.email_utils import normalize_email
 
 # REGISTER
-def register_user(db: Session, email: str, password: str):
+def register_user(db: Session, email: str, password: str, gym_id: int = 1):
     email = normalize_email(email)
+    if db.query(Gym).filter(Gym.id == gym_id).first() is None:
+        raise HTTPException(status_code=400, detail="Gym inválido")
     existing = db.query(User).filter(User.email == email).first()
 
     if existing:
         raise HTTPException(status_code=400, detail="Email já cadastrado")
 
     user = User(
-        email=email, password=hash_password(password), role="ALUNO", is_verified=False
+        gym_id=gym_id,
+        email=email,
+        password=hash_password(password),
+        role="ALUNO",
+        is_verified=False,
     )
 
     db.add(user)
@@ -35,7 +43,7 @@ def register_user(db: Session, email: str, password: str):
 # LOGIN (AGORA SÓ VALIDA)
 def login_user(db: Session, email: str, password: str):
     email = normalize_email(email)
-    user = db.query(User).filter(User.email == email).first()
+    user = get_user_by_email(db, email)
 
     if not user or not verify_password(password, user.password):
         return None
@@ -56,7 +64,7 @@ def create_email_verification_token(user_id: int):
 # RESEND EMAIL
 def resend_verification_email(db: Session, email: str):
     email = normalize_email(email)
-    user = db.query(User).filter(User.email == email).first()
+    user = get_user_by_email(db, email)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

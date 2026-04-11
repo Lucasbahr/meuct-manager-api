@@ -61,11 +61,14 @@ def test_create_student_unauthorized(client):
     assert response.status_code == 401
 
 
-def test_update_my_profile(client, user_token, db):
+def test_update_my_profile(client, user_token, user, db):
     from app.models.student import Student
 
     student = Student(
-        user_id=1, nome="Nome Antigo", telefone="11999999999", endereco="Antigo"
+        user_id=user.id,
+        nome="Nome Antigo",
+        telefone="11999999999",
+        endereco="Antigo",
     )
     db.add(student)
     db.commit()
@@ -90,8 +93,12 @@ def test_update_my_profile(client, user_token, db):
 
 def test_admin_update_student(client, admin_token, db):
     from app.models.student import Student
+    from app.services.user_service import create_user
 
-    student = Student(user_id=2, nome="Aluno", telefone="11999999999", endereco="Rua A")
+    aluno = create_user(db, "aluno-upd@test.com", "123456")
+    student = Student(
+        user_id=aluno.id, nome="Aluno", telefone="11999999999", endereco="Rua A"
+    )
     db.add(student)
     db.commit()
     db.refresh(student)
@@ -111,8 +118,10 @@ def test_admin_update_student(client, admin_token, db):
 
 def test_user_cannot_update_other_student(client, user_token, db):
     from app.models.student import Student
+    from app.services.user_service import create_user
 
-    student = Student(user_id=2, nome="Outro")
+    outro_u = create_user(db, "outro-upd@test.com", "123456")
+    student = Student(user_id=outro_u.id, nome="Outro")
     db.add(student)
     db.commit()
     db.refresh(student)
@@ -128,8 +137,10 @@ def test_user_cannot_update_other_student(client, user_token, db):
 
 def test_admin_update_invalid_field(client, admin_token, db):
     from app.models.student import Student
+    from app.services.user_service import create_user
 
-    student = Student(user_id=2, nome="Aluno")
+    aluno = create_user(db, "aluno-inv@test.com", "123456")
+    student = Student(user_id=aluno.id, nome="Aluno")
     db.add(student)
     db.commit()
 
@@ -144,8 +155,10 @@ def test_admin_update_invalid_field(client, admin_token, db):
 
 def test_admin_update_no_data(client, admin_token, db):
     from app.models.student import Student
+    from app.services.user_service import create_user
 
-    student = Student(user_id=2, nome="Aluno")
+    aluno = create_user(db, "aluno-nodata@test.com", "123456")
+    student = Student(user_id=aluno.id, nome="Aluno")
     db.add(student)
     db.commit()
 
@@ -158,11 +171,11 @@ def test_admin_update_no_data(client, admin_token, db):
     assert response.status_code == 400
 
 
-def test_update_my_profile_atleta(client, user_token, db):
+def test_update_my_profile_atleta(client, user_token, user, db):
     from app.models.student import Student
 
     student = Student(
-        user_id=1,
+        user_id=user.id,
         nome="Nome",
         telefone="+5511999999999",
         endereco="Rua",
@@ -193,10 +206,10 @@ def test_update_my_profile_atleta(client, user_token, db):
     assert "tapology.com" in data["link_tapology"]
 
 
-def test_update_my_profile_nivel_invalido(client, user_token, db):
+def test_update_my_profile_nivel_invalido(client, user_token, user, db):
     from app.models.student import Student
 
-    db.add(Student(user_id=1, nome="A", telefone="+5511999999999"))
+    db.add(Student(user_id=user.id, nome="A", telefone="+5511999999999"))
     db.commit()
 
     response = client.put(
@@ -208,11 +221,11 @@ def test_update_my_profile_nivel_invalido(client, user_token, db):
     assert response.status_code == 422
 
 
-def test_update_my_profile_ultima_luta(client, user_token, db):
+def test_update_my_profile_ultima_luta(client, user_token, user, db):
     from app.models.student import Student
 
     db.add(
-        Student(user_id=1, nome="A", telefone="+5511999999999", endereco="X")
+        Student(user_id=user.id, nome="A", telefone="+5511999999999", endereco="X")
     )
     db.commit()
 
@@ -244,10 +257,10 @@ _MIN_JPEG = (
 )
 
 
-def test_upload_and_get_my_photo(client, user_token, db):
+def test_upload_and_get_my_photo(client, user_token, user, db):
     from app.models.student import Student
 
-    db.add(Student(user_id=1, nome="A", telefone="+5511999999999"))
+    db.add(Student(user_id=user.id, nome="A", telefone="+5511999999999"))
     db.commit()
 
     up = client.post(
@@ -268,11 +281,25 @@ def test_upload_and_get_my_photo(client, user_token, db):
     assert "image" in (get.headers.get("content-type") or "")
 
 
-def test_get_other_student_photo_forbidden(client, user_token, db):
+def test_get_other_student_photo_forbidden(client, user_token, user, db):
     from app.models.student import Student
+    from app.services.user_service import create_user
 
-    db.add(Student(user_id=1, nome="Eu", telefone="+5511999999999", foto_path="s/1/x.jpg"))
-    other = Student(user_id=2, nome="Outro", telefone="+5511888888888", foto_path="s/2/x.jpg")
+    db.add(
+        Student(
+            user_id=user.id,
+            nome="Eu",
+            telefone="+5511999999999",
+            foto_path="s/1/x.jpg",
+        )
+    )
+    outro_u = create_user(db, "outro-photo@test.com", "123456")
+    other = Student(
+        user_id=outro_u.id,
+        nome="Outro",
+        telefone="+5511888888888",
+        foto_path="s/2/x.jpg",
+    )
     db.add(other)
     db.commit()
     db.refresh(other)
@@ -316,11 +343,11 @@ def test_admin_upload_athlete_card_and_aluno_can_get(
     assert get.content == _MIN_JPEG
 
 
-def test_upload_athlete_card_requires_admin(client, user_token, db):
+def test_upload_athlete_card_requires_admin(client, user_token, user, db):
     from app.models.student import Student
 
     st = Student(
-        user_id=1,
+        user_id=user.id,
         nome="A",
         telefone="+5511999999999",
         e_atleta=True,

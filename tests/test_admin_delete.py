@@ -6,7 +6,13 @@ def test_admin_delete_user_removes_student_and_checkins(client, admin_token, db)
     from app.models.student import Student
     from app.models.checkin import Checkin
 
-    user = User(email="x@test.com", password="pw", role="ALUNO", is_verified=True)
+    user = User(
+        gym_id=1,
+        email="x@test.com",
+        password="pw",
+        role="ALUNO",
+        is_verified=True,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)

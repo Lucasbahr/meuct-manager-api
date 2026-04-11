@@ -14,6 +14,47 @@ class Student(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True)
     user = relationship("User")
+    student_modalities = relationship(
+        "StudentModality",
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )
+    graduation_history = relationship(
+        "StudentGraduationHistory",
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )
+    stats = relationship(
+        "StudentStats",
+        back_populates="student",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    xp_logs = relationship(
+        "XpLog",
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )
+    student_badges = relationship(
+        "StudentBadge",
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )
+    shop_orders = relationship(
+        "ShopOrder",
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )
+    subscriptions = relationship(
+        "StudentSubscription",
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )
+    subscription_payments = relationship(
+        "SubscriptionPayment",
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )
 
     nome = Column(String, nullable=True)
     telefone = Column(String, nullable=True)

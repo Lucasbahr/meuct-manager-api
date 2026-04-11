@@ -113,6 +113,16 @@ resource "google_cloud_run_service" "api" {
           value = google_storage_bucket.media.name
         }
 
+        env {
+          name  = "GCS_TENANT_PREFIX"
+          value = var.gcs_tenant_prefix
+        }
+
+        env {
+          name  = "GCS_PROVISION_TENANT_ON_CREATE"
+          value = var.gcs_provision_tenant_on_create ? "true" : "false"
+        }
+
         ports {
           container_port = 8080
         }

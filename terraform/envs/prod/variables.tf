@@ -72,3 +72,15 @@ variable "base_url" {
   description = "base url"
   sensitive   = true
 }
+
+variable "gcs_tenant_prefix" {
+  type        = string
+  default     = "tenants"
+  description = "Prefixo por academia dentro do bucket único (isolamento lógico + IAM futuro por prefixo)."
+}
+
+variable "gcs_provision_tenant_on_create" {
+  type        = bool
+  default     = true
+  description = "Se true, a API cria marcadores em tenants/{gym_id}/... ao POST /gyms."
+}

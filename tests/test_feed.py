@@ -19,7 +19,7 @@ def test_admin_create_and_public_list_feed(client, admin_token):
     assert created["titulo"] == "Evento UFC"
     item_id = created["id"]
 
-    public = client.get("/feed/")
+    public = client.get("/feed/?academia_id=1")
     assert public.status_code == status.HTTP_200_OK
     items = public.json()["data"]
     assert any(i["id"] == item_id for i in items)
@@ -76,7 +76,7 @@ def test_add_comment_and_list_comments(client, admin_token, user_token):
     assert comment.status_code == status.HTTP_200_OK
     assert comment.json()["data"]["conteudo"] == "Vai dar merda!!"
 
-    comments = client.get(f"/feed/{item_id}/comments")
+    comments = client.get(f"/feed/{item_id}/comments?academia_id=1")
     assert comments.status_code == status.HTTP_200_OK
     data = comments.json()["data"]
     assert any(c["id"] == comment.json()["data"]["id"] for c in data)

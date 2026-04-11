@@ -1,10 +1,17 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field, field_validator
 from app.core.email_utils import normalize_email
 
 
 class UserCreate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     email: EmailStr
     password: str
+    gym_id: int = Field(
+        default=1,
+        ge=1,
+        validation_alias=AliasChoices("gym_id", "academia_id"),
+    )
 
     @field_validator("email")
     @classmethod

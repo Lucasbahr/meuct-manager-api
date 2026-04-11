@@ -18,8 +18,11 @@ class FeedService:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_item(self, data: FeedItemCreate, created_by_user_id: int) -> FeedItem:
+    def create_item(
+        self, data: FeedItemCreate, created_by_user_id: int, gym_id: int
+    ) -> FeedItem:
         item = FeedItem(
+            gym_id=gym_id,
             created_by=created_by_user_id,
             tipo=data.tipo,
             titulo=data.titulo,
@@ -48,8 +51,13 @@ class FeedService:
         self.db.refresh(item)
         return item
 
-    def get_item_or_none(self, item_id: int) -> Optional[FeedItem]:
-        return self.db.query(FeedItem).filter(FeedItem.id == item_id).first()
+    def get_item_or_none(
+        self, item_id: int, gym_id: Optional[int] = None
+    ) -> Optional[FeedItem]:
+        q = self.db.query(FeedItem).filter(FeedItem.id == item_id)
+        if gym_id is not None:
+            q = q.filter(FeedItem.gym_id == gym_id)
+        return q.first()
 
     def like_item(self, item_id: int, user_id: int) -> bool:
         existing = (
@@ -110,12 +118,14 @@ class FeedService:
 
     def list_feed(
         self,
+        gym_id: int,
         limit: int = 50,
         offset: int = 0,
         liked_by_me_user_id: Optional[int] = None,
     ):
         items = (
             self.db.query(FeedItem)
+            .filter(FeedItem.gym_id == gym_id)
             .order_by(FeedItem.created_at.desc())
             .offset(offset)
             .limit(limit)
