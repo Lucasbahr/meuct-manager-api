@@ -38,8 +38,20 @@ logger = logging.getLogger(__name__)
 #  REGISTER
 @router.post("/register", response_model=ResponseBase)
 def register(user: UserCreate, db: Session = Depends(get_db)):
+    from app.services import tenant_saas_service as ts_svc
+
+    gid = user.gym_id
+    if user.tenant_slug:
+        g = ts_svc.get_gym_by_slug(db, user.tenant_slug)
+        if not g or not g.is_active:
+            raise HTTPException(
+                status_code=400,
+                detail="Academia (tenant) inválida ou inativa",
+            )
+        gid = g.id
+
     created_user = register_user(
-        db, user.email, user.password, gym_id=user.gym_id
+        db, user.email, user.password, gym_id=gid
     )
 
     return {
@@ -116,6 +128,7 @@ def refresh(refresh_token: str, db: Session = Depends(get_db)):
             "user_id": user.id,
             "role": user.role,
             "gym_id": user.gym_id,
+            "tenant_id": user.gym_id,
         }
     )
 

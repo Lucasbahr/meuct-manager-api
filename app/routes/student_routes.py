@@ -10,8 +10,8 @@ from app.schemas.response import ResponseBase
 from app.core.deps import (
     get_current_user,
     require_academy_admin,
-    require_staff,
     require_gym_id,
+    require_staff,
 )
 from app.core.roles import is_staff, normalize_role
 from app.db.deps import get_db
@@ -123,8 +123,17 @@ def create_student(
 
 #  Get do Usuario
 @router.get("/me", response_model=ResponseBase)
-def get_my_student(user=Depends(get_current_user), db: Session = Depends(get_db)):
-    student = db.query(Student).filter(Student.user_id == user["user_id"]).first()
+def get_my_student(
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+    gym_id: int = Depends(require_gym_id),
+):
+    student = (
+        db.query(Student)
+        .join(User, User.id == Student.user_id)
+        .filter(Student.user_id == user["user_id"], User.gym_id == gym_id)
+        .first()
+    )
 
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")

@@ -220,3 +220,114 @@ def test_paypal_webhook_marks_paid(client, admin_token, user_token, user, db, mo
 
     stock = client.get(f"/products/{pid}", headers=h_user).json()["data"]["stock"]
     assert stock == 9
+
+
+def test_mercadopago_oauth_start_requires_server_config(client, admin_token, monkeypatch):
+    monkeypatch.delenv("MERCADOPAGO_OAUTH_CLIENT_ID", raising=False)
+    monkeypatch.delenv("MERCADOPAGO_OAUTH_REDIRECT_URI", raising=False)
+    r = client.post(
+        "/payment/mercado-pago/oauth/start",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={},
+    )
+    assert r.status_code == 503
+
+
+def test_mercadopago_oauth_next_url_requires_prefix(client, admin_token, monkeypatch):
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_ID", "app123")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_REDIRECT_URI", "https://api.test/callback")
+    r = client.post(
+        "/payment/mercado-pago/oauth/start",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"next_url": "https://evil.example/steal"},
+    )
+    assert r.status_code == 400
+
+
+def test_mercadopago_oauth_start_and_callback(client, admin_token, db, monkeypatch):
+    from urllib.parse import parse_qs, urlparse
+
+    from app.models.marketplace import GymPaymentSettings
+
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_ID", "app123")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_SECRET", "secret456")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_REDIRECT_URI", "https://api.test/callback")
+
+    start = client.post(
+        "/payment/mercado-pago/oauth/start",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={},
+    )
+    assert start.status_code == 200, start.text
+    auth_url = start.json()["data"]["authorization_url"]
+    parsed = urlparse(auth_url)
+    assert "mercadopago.com" in parsed.netloc
+    qs = parse_qs(parsed.query)
+    state = qs["state"][0]
+    assert qs["client_id"] == ["app123"]
+
+    def fake_exchange(*_a, **_k):
+        return {
+            "access_token": "AT-OAUTH",
+            "refresh_token": "RT-OAUTH",
+            "user_id": 777,
+        }
+
+    monkeypatch.setattr(
+        "app.services.marketplace_payment.mercadopago_oauth_exchange_code",
+        fake_exchange,
+    )
+
+    cb = client.get(
+        "/payment/mercado-pago/oauth/callback",
+        params={"code": "auth-code-test", "state": state},
+        follow_redirects=False,
+    )
+    assert cb.status_code == 200
+    assert "conectado" in cb.text.lower()
+
+    row = (
+        db.query(GymPaymentSettings)
+        .filter(
+            GymPaymentSettings.gym_id == 1,
+            GymPaymentSettings.provider == "mercado_pago",
+        )
+        .first()
+    )
+    assert row is not None
+    assert row.access_token is not None
+
+
+def test_mercadopago_oauth_callback_redirects_when_next_url(client, admin_token, monkeypatch):
+    from urllib.parse import parse_qs, urlparse
+
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_ID", "app")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_SECRET", "sec")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_REDIRECT_URI", "https://api.test/cb")
+    monkeypatch.setenv(
+        "MERCADOPAGO_OAUTH_SUCCESS_URL_PREFIX", "https://app.frontend.test"
+    )
+
+    start = client.post(
+        "/payment/mercado-pago/oauth/start",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"next_url": "https://app.frontend.test/gym/pagamentos"},
+    )
+    assert start.status_code == 200, start.text
+    qs = parse_qs(urlparse(start.json()["data"]["authorization_url"]).query)
+    state = qs["state"][0]
+
+    monkeypatch.setattr(
+        "app.services.marketplace_payment.mercadopago_oauth_exchange_code",
+        lambda *a, **k: {"access_token": "t1", "refresh_token": "r1", "user_id": 1},
+    )
+
+    cb = client.get(
+        "/payment/mercado-pago/oauth/callback",
+        params={"code": "c1", "state": state},
+        follow_redirects=False,
+    )
+    assert cb.status_code == 302
+    assert cb.headers["location"] == (
+        "https://app.frontend.test/gym/pagamentos?mp_oauth=ok"
+    )

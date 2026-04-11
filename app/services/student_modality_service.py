@@ -206,7 +206,10 @@ def eligibility_snapshot(db: Session, gym_id: int, student_id: int) -> List[dict
             StudentModality.student_id == student_id,
             Graduation.gym_id == gym_id,
         )
-        .options(selectinload(StudentModality.graduation))
+        .options(
+            selectinload(StudentModality.graduation),
+            selectinload(StudentModality.modality),
+        )
         .all()
     )
     out = []
@@ -216,7 +219,11 @@ def eligibility_snapshot(db: Session, gym_id: int, student_id: int) -> List[dict
             {
                 "student_modality_id": sm.id,
                 "modality_id": sm.modality_id,
+                "modality_name": sm.modality.name if sm.modality else None,
                 "current_graduation_id": sm.graduation_id,
+                "current_graduation_name": (
+                    sm.graduation.name if sm.graduation else None
+                ),
                 "eligible_for_promotion": check_graduation_eligibility(sm),
                 "next_graduation": (
                     {

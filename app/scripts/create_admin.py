@@ -68,8 +68,13 @@ def ensure_admin_exists(db: Session):
                         or os.getenv("ADMIN_ACADEMIA_NOME")
                         or "Main Gym"
                     ),
+                    slug=f"gym-{gym_id}",
                 )
             )
+            db.commit()
+            from app.services.tenant_saas_service import ensure_tenant_config
+
+            ensure_tenant_config(db, gym_id)
             db.commit()
 
         user = User(

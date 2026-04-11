@@ -54,9 +54,14 @@ def ensure_default_gym(db):
     from app.models.graduation import Graduation
     from app.models.gym import Gym
     from app.models.modality import Modality
+    from app.models.tenant_config import TenantConfig
 
     if db.query(Gym).filter(Gym.id == 1).first() is None:
-        db.add(Gym(id=1, name="Test Gym"))
+        db.add(Gym(id=1, name="Test Gym", slug="test-gym"))
+        db.commit()
+
+    if db.query(TenantConfig).filter(TenantConfig.gym_id == 1).first() is None:
+        db.add(TenantConfig(gym_id=1))
         db.commit()
 
     m = db.query(Modality).filter(Modality.name == "Muay Thai").first()

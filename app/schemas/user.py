@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field, field_validator
 from app.core.email_utils import normalize_email
 
@@ -11,6 +13,11 @@ class UserCreate(BaseModel):
         default=1,
         ge=1,
         validation_alias=AliasChoices("gym_id", "academia_id"),
+    )
+    tenant_slug: Optional[str] = Field(
+        default=None,
+        max_length=80,
+        description="Se informado, define a academia pelo slug (white-label)",
     )
 
     @field_validator("email")

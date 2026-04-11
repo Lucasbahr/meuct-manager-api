@@ -206,5 +206,10 @@ class GymPaymentSettings(Base):
     client_secret = Column(Text, nullable=True)
     access_token = Column(Text, nullable=True)
     refresh_token = Column(Text, nullable=True)
+    public_key = Column(String(512), nullable=True)
 
     gym = relationship("Gym", back_populates="payment_settings")
+
+
+# Nome de domínio SaaS: credenciais por tenant; tokens em `access_token` (cifrados com Fernet quando configurado).
+TenantPaymentConfig = GymPaymentSettings

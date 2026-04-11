@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -11,11 +11,27 @@ def now_utc():
 
 
 class Gym(Base):
+    """Tenant da aplicação (academia). `slug` identifica o white-label na URL/app."""
+
     __tablename__ = "gyms"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(128), nullable=False)
+    slug = Column(String(80), nullable=False, unique=True, index=True)
+    logo_url = Column(String(1024), nullable=True)
+    cor_primaria = Column(String(16), nullable=True)
+    cor_secundaria = Column(String(16), nullable=True)
+    cor_background = Column(String(16), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+
     created_at = Column(DateTime(timezone=True), default=now_utc)
+
+    tenant_config = relationship(
+        "TenantConfig",
+        back_populates="gym",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     users = relationship("User", back_populates="gym")
     graduations = relationship(
@@ -61,3 +77,17 @@ class Gym(Base):
         back_populates="gym",
         cascade="all, delete-orphan",
     )
+    gym_classes = relationship(
+        "GymClass",
+        back_populates="gym",
+        cascade="all, delete-orphan",
+    )
+    gym_schedule_slots = relationship(
+        "GymScheduleSlot",
+        back_populates="gym",
+        cascade="all, delete-orphan",
+    )
+
+
+# Alias semântico para documentação / imports explícitos SaaS
+Tenant = Gym

@@ -1,6 +1,7 @@
 from passlib.context import CryptContext
 from jose import jwt, JWTError, ExpiredSignatureError
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 import os
 from dotenv import load_dotenv
 from app.core.session_cache import session_cache
@@ -88,3 +89,28 @@ def create_email_verification_token(user_id: int):
     return _create_token(
         {"user_id": user_id}, timedelta(hours=24), "email_verification"
     )
+
+
+def create_mercadopago_oauth_state(
+    gym_id: int, next_url: Optional[str] = None
+) -> str:
+    """JWT curto para o parâmetro `state` do OAuth Mercado Pago (CSRF + gym_id)."""
+    payload: dict = {"gym_id": gym_id}
+    if next_url is not None:
+        if len(next_url) > 2048:
+            raise ValueError("next_url excede o tamanho máximo")
+        payload["next"] = next_url
+    return _create_token(payload, timedelta(minutes=15), "mp_oauth")
+
+
+def decode_mercadopago_oauth_state(token: str) -> dict:
+    payload = decode_token(token)
+    if payload.get("error"):
+        raise ValueError("state inválido ou expirado")
+    if payload.get("type") != "mp_oauth":
+        raise ValueError("state inválido")
+    try:
+        gid = int(payload["gym_id"])
+    except (KeyError, TypeError, ValueError) as e:
+        raise ValueError("state inválido") from e
+    return {"gym_id": gid, "next": payload.get("next")}

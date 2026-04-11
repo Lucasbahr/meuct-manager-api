@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import Depends, HTTPException, Security, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError, ExpiredSignatureError
@@ -15,6 +17,20 @@ ALGORITHM = os.getenv("ALGORITHM")
 
 
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
+
+
+def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(
+        optional_security
+    ),
+):
+    if credentials is None:
+        return None
+    try:
+        return jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+    except (ExpiredSignatureError, JWTError):
+        return None
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
