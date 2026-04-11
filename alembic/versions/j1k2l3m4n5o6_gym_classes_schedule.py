@@ -31,7 +31,9 @@ def upgrade() -> None:
         sa.Column("instructor_name", sa.String(255), nullable=True),
         sa.Column("duration_minutes", sa.Integer(), nullable=True),
         sa.Column("sort_order", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column(
+            "is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")
+        ),
         sa.ForeignKeyConstraint(["gym_id"], ["gyms.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["modality_id"], ["modalities.id"], ondelete="SET NULL"),
         sa.UniqueConstraint("gym_id", "name", name="uq_gym_classes_gym_name"),
@@ -49,7 +51,9 @@ def upgrade() -> None:
         sa.Column("end_time", sa.Time(), nullable=False),
         sa.Column("room", sa.String(128), nullable=True),
         sa.Column("notes", sa.String(512), nullable=True),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column(
+            "is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")
+        ),
         sa.CheckConstraint(
             "weekday >= 0 AND weekday <= 6", name="ck_gym_schedule_weekday"
         ),

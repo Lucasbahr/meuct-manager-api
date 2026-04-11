@@ -34,7 +34,8 @@ def upgrade() -> None:
                 "is_active",
                 sa.Boolean(),
                 nullable=False,
-                server_default=sa.text("1"),
+                # PostgreSQL exige literal booleano; SQLite também aceita true/false.
+                server_default=sa.text("true"),
             )
         )
 
@@ -50,16 +51,29 @@ def upgrade() -> None:
         "tenant_configs",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("gym_id", sa.Integer(), nullable=False),
-        sa.Column("permite_checkin", sa.Boolean(), nullable=False, server_default=sa.text("1")),
         sa.Column(
-            "permite_agendamento", sa.Boolean(), nullable=False, server_default=sa.text("0")
-        ),
-        sa.Column("mostrar_ranking", sa.Boolean(), nullable=False, server_default=sa.text("1")),
-        sa.Column(
-            "mostrar_graduacao", sa.Boolean(), nullable=False, server_default=sa.text("1")
+            "permite_checkin", sa.Boolean(), nullable=False, server_default=sa.text("true")
         ),
         sa.Column(
-            "cobrar_mensalidade", sa.Boolean(), nullable=False, server_default=sa.text("0")
+            "permite_agendamento",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
+        sa.Column(
+            "mostrar_ranking", sa.Boolean(), nullable=False, server_default=sa.text("true")
+        ),
+        sa.Column(
+            "mostrar_graduacao",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("true"),
+        ),
+        sa.Column(
+            "cobrar_mensalidade",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
         ),
         sa.ForeignKeyConstraint(["gym_id"], ["gyms.id"], ondelete="CASCADE"),
         sa.UniqueConstraint("gym_id", name="uq_tenant_configs_gym_id"),
@@ -75,7 +89,7 @@ def upgrade() -> None:
                     gym_id, permite_checkin, permite_agendamento,
                     mostrar_ranking, mostrar_graduacao, cobrar_mensalidade
                 ) VALUES (
-                    :gid, 1, 0, 1, 1, 0
+                    :gid, true, false, true, true, false
                 )
                 """
             ),
