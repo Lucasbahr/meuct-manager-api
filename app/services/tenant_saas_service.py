@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from decimal import Decimal
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -103,8 +103,31 @@ def tenant_public_dict(g: Gym) -> dict[str, Any]:
         "cor_primaria": g.cor_primaria,
         "cor_secundaria": g.cor_secundaria,
         "cor_background": g.cor_background,
+        "public_description": g.public_description,
         "ativo": g.is_active,
     }
+
+
+_BRANDING_KEYS = frozenset(
+    {
+        "public_description",
+        "cor_primaria",
+        "cor_secundaria",
+        "cor_background",
+        "logo_url",
+    }
+)
+
+
+def update_gym_branding(db: Session, gym_id: int, patch: Dict[str, Any]) -> Gym:
+    g = db.query(Gym).filter(Gym.id == gym_id).first()
+    if not g:
+        raise HTTPException(status_code=404, detail="Academia não encontrada")
+    for key, value in patch.items():
+        if key not in _BRANDING_KEYS:
+            continue
+        setattr(g, key, value)
+    return g
 
 
 def tenant_config_dict(tc: TenantConfig) -> dict[str, Any]:

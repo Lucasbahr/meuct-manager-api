@@ -19,6 +19,29 @@ def test_tenant_public_by_slug(client):
     assert r.json()["data"]["nome"] == "Test Gym"
 
 
+def test_patch_tenant_branding_academy_admin(client, admin_token):
+    r = client.patch(
+        "/tenant/branding",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "public_description": "Nossa história e valores.",
+            "cor_primaria": "#E53935",
+            "cor_background": "#1A0505",
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    assert data["public_description"] == "Nossa história e valores."
+    assert data["cor_primaria"] == "#E53935"
+
+    cfg = client.get(
+        "/tenant/config",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert cfg.status_code == 200, cfg.text
+    assert cfg.json()["data"]["tenant"]["public_description"] == "Nossa história e valores."
+
+
 def test_post_tenants_requires_system_admin(client, admin_token):
     r = client.post(
         "/tenants",
