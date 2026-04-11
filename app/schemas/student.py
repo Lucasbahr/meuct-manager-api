@@ -109,5 +109,8 @@ class StudentResponse(BaseModel):
     foto_url: Optional[str]
     foto_atleta_url: Optional[str]
     modalities: List[StudentModalityItem] = []
+    # Compatível com apps que ainda leem `modalidade` / `graduacao` (primeira inscrição).
+    modalidade: Optional[str] = None
+    graduacao: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

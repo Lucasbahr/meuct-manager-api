@@ -1,7 +1,12 @@
 def test_dashboard_me_includes_login_audit(client, user_token, user, db):
     from app.models.student import Student
+    from app.services import student_modality_service as sm_svc
 
-    db.add(Student(user_id=user.id, nome="Aluno", telefone="+5511999999999"))
+    st = Student(user_id=user.id, nome="Aluno", telefone="+5511999999999")
+    db.add(st)
+    db.commit()
+    db.refresh(st)
+    sm_svc.ensure_default_enrollment(db, 1, st.id)
     db.commit()
 
     r = client.get(
@@ -20,16 +25,23 @@ def test_dashboard_me_includes_login_audit(client, user_token, user, db):
 
 def test_dashboard_academy_shows_checkin_audit(client, admin_token, user, db):
     from app.models.student import Student
+    from app.services import student_modality_service as sm_svc
+
+    from tests.checkin_schedule_helpers import ensure_slot_for_checkin_tests
 
     student = Student(user_id=user.id, nome="Aluno", telefone="+5511999999999")
     db.add(student)
     db.commit()
     db.refresh(student)
+    sm_svc.ensure_default_enrollment(db, 1, student.id)
+    db.commit()
+
+    sid = ensure_slot_for_checkin_tests(db)
 
     chk = client.post(
         "/checkin/",
         headers={"Authorization": f"Bearer {admin_token}"},
-        json={"student_id": student.id},
+        json={"student_id": student.id, "schedule_slot_id": sid},
     )
     assert chk.status_code == 200
 

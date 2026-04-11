@@ -138,6 +138,8 @@ def get_my_student(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
+    sm_svc.ensure_default_enrollment(db, gym_id, student.id)
+    db.commit()
     loaded = sm_svc.load_student_with_modalities(db, student.id) or student
     return {
         "success": True,
@@ -175,24 +177,6 @@ def list_athletes_directory(
         "success": True,
         "message": "Atletas",
         "data": [sm_svc.student_to_response(s).model_dump() for s in students],
-    }
-
-
-@router.get("/alerts", response_model=ResponseBase)
-def students_subscription_alerts(
-    _staff=Depends(require_staff),
-    db: Session = Depends(get_db),
-    gym_id: int = Depends(require_gym_id),
-):
-    raw = membership_svc.build_students_alerts(db, gym_id)
-    out = StudentsAlertsOut(
-        due_soon=[StudentAlertItem(**x) for x in raw["due_soon"]],
-        overdue=[StudentAlertItem(**x) for x in raw["overdue"]],
-    )
-    return {
-        "success": True,
-        "message": "Alertas de vencimento e atraso (mensalidades)",
-        "data": out.model_dump(),
     }
 
 

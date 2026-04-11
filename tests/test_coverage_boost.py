@@ -56,20 +56,30 @@ def test_admin_set_user_role_cannot_demote_self(client, admin_user, admin_token)
 
 def test_checkin_summary_and_history_flow(client, db, user, user_token):
     from app.models.student import Student
+    from app.services import student_modality_service as sm_svc
+
+    from tests.checkin_schedule_helpers import ensure_slot_for_checkin_tests
 
     student = Student(user_id=user.id, nome="Aluno", telefone="+5511999999999")
     db.add(student)
     db.commit()
+    db.refresh(student)
+    sm_svc.ensure_default_enrollment(db, 1, student.id)
+    db.commit()
+
+    sid = ensure_slot_for_checkin_tests(db)
 
     do_checkin = client.post(
         "/checkin/",
         headers={"Authorization": f"Bearer {user_token}"},
+        json={"schedule_slot_id": sid},
     )
     assert do_checkin.status_code == status.HTTP_200_OK
 
     duplicate = client.post(
         "/checkin/",
         headers={"Authorization": f"Bearer {user_token}"},
+        json={"schedule_slot_id": sid},
     )
     assert duplicate.status_code == status.HTTP_400_BAD_REQUEST
 

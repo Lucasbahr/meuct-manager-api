@@ -145,7 +145,15 @@ def student_to_response(student: Student) -> StudentResponse:
             )
         )
     base = StudentResponse.model_validate(student)
-    return base.model_copy(update={"modalities": meds})
+    legacy_mod = meds[0].modality_name if meds else None
+    legacy_grad = meds[0].graduation_name if meds else None
+    return base.model_copy(
+        update={
+            "modalities": meds,
+            "modalidade": legacy_mod,
+            "graduacao": legacy_grad,
+        }
+    )
 
 
 def ensure_default_enrollment(
