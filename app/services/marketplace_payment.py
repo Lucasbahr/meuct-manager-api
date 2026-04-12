@@ -15,6 +15,38 @@ from app.services.payment_credentials import ProviderCredentials
 PAYPAL_API_BASE = os.getenv("PAYPAL_API_BASE", "https://api-m.sandbox.paypal.com")
 MERCADOPAGO_API = "https://api.mercadopago.com"
 
+# Token de credencial da *aplicação* (painel) costuma usar o prefixo APP_USR sem par
+# refresh_token OAuth. Com refresh_token gravado, o mesmo prefixo pode vir na resposta
+# oficial do OAuth do vendedor — nesse caso o checkout é válido.
+MERCADOPAGO_APPLICATION_ACCESS_PREFIX = "APP_USR"
+
+
+def mercadopago_bearer_for_vendor_api(creds: ProviderCredentials) -> str:
+    """
+    Bearer para preference / payments: exige access_token e rejeita credencial de aplicação
+    isolada (APP_USR sem refresh_token OAuth armazenado).
+    """
+    if not creds.access_token or not str(creds.access_token).strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Mercado Pago não configurado (sem access_token OAuth do vendedor)",
+        )
+    tok = str(creds.access_token).strip()
+    rt = (creds.refresh_token or "").strip()
+    if (
+        tok.upper().startswith(MERCADOPAGO_APPLICATION_ACCESS_PREFIX)
+        and not rt
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Mercado Pago: access_token APP_USR sem refresh_token indica token da "
+                "aplicação, incompatível com checkout. Conecte via OAuth em "
+                "/payment/mercado-pago/oauth/start."
+            ),
+        )
+    return tok
+
 
 def _paypal_oauth(creds: ProviderCredentials) -> str:
     if not creds.client_id or not creds.client_secret:
@@ -124,11 +156,7 @@ def mercadopago_create_preference(
     gym_id: int,
 ) -> tuple[str, str]:
     """Retorna (init_point, preference_id). Usa access_token da conta do vendedor (Checkout Pro)."""
-    if not creds.access_token:
-        raise HTTPException(
-            status_code=400,
-            detail="Mercado Pago: configure access_token da academia",
-        )
+    token = mercadopago_bearer_for_vendor_api(creds)
     mp_items = []
     for oi in items:
         title = oi.product.name if oi.product else f"Produto {oi.product_id}"
@@ -158,7 +186,7 @@ def mercadopago_create_preference(
         r = client.post(
             f"{MERCADOPAGO_API}/checkout/preferences",
             headers={
-                "Authorization": f"Bearer {creds.access_token}",
+                "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             },
             json=body,
@@ -180,12 +208,11 @@ def mercadopago_create_preference(
 
 
 def mercadopago_fetch_payment(creds: ProviderCredentials, payment_id: str) -> dict:
-    if not creds.access_token:
-        raise HTTPException(status_code=400, detail="Mercado Pago não configurado")
+    token = mercadopago_bearer_for_vendor_api(creds)
     with httpx.Client(timeout=30.0) as client:
         r = client.get(
             f"{MERCADOPAGO_API}/v1/payments/{payment_id}",
-            headers={"Authorization": f"Bearer {creds.access_token}"},
+            headers={"Authorization": f"Bearer {token}"},
         )
         if r.status_code != 200:
             raise HTTPException(
@@ -204,7 +231,7 @@ def mercadopago_oauth_exchange_code(
     test_token: bool = False,
 ) -> dict[str, Any]:
     """Troca o authorization code por tokens da conta do vendedor (OAuth MP)."""
-    data: dict[str, Any] = {
+    json_body: dict[str, Any] = {
         "client_id": client_id,
         "client_secret": client_secret,
         "grant_type": "authorization_code",
@@ -212,15 +239,15 @@ def mercadopago_oauth_exchange_code(
         "redirect_uri": redirect_uri,
     }
     if test_token:
-        data["test_token"] = "true"
+        json_body["test_token"] = "true"
     with httpx.Client(timeout=45.0) as client:
         r = client.post(
             f"{MERCADOPAGO_API}/oauth/token",
             headers={
                 "Accept": "application/json",
-                "Content-Type": "application/x-www-form-urlencoded",
+                "Content-Type": "application/json",
             },
-            data=data,
+            json=json_body,
         )
     if r.status_code != 200:
         raise HTTPException(
@@ -238,22 +265,22 @@ def mercadopago_oauth_refresh_access_token(
     test_token: bool = False,
 ) -> dict[str, Any]:
     """Renova access_token usando refresh_token (OAuth conta vendedor)."""
-    data: dict[str, Any] = {
+    json_body: dict[str, Any] = {
         "client_id": client_id,
         "client_secret": client_secret,
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
     }
     if test_token:
-        data["test_token"] = "true"
+        json_body["test_token"] = "true"
     with httpx.Client(timeout=45.0) as client:
         r = client.post(
             f"{MERCADOPAGO_API}/oauth/token",
             headers={
                 "Accept": "application/json",
-                "Content-Type": "application/x-www-form-urlencoded",
+                "Content-Type": "application/json",
             },
-            data=data,
+            json=json_body,
         )
     if r.status_code != 200:
         raise HTTPException(
