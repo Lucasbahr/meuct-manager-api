@@ -34,6 +34,27 @@ def mercadopago_user_connect(
     }
 
 
+@router.get("/mercadopago/status", response_model=ResponseBase)
+def mercadopago_user_link_status(
+    user=Depends(require_academy_admin),
+    db: Session = Depends(get_db),
+):
+    """Indica se o admin logado já concluiu OAuth (conta MP por usuário)."""
+    uid = int(user["user_id"])
+    row = mp_user.get_mercadopago_account(db, uid)
+    token = (row.access_token or "").strip() if row is not None else ""
+    linked = bool(row) and bool(token)
+    return {
+        "success": True,
+        "message": "OK",
+        "data": {
+            "has_access_token": linked,
+            "connected": linked,
+            "oauth_flow": "mp_user_oauth",
+        },
+    }
+
+
 @router.get("/mercadopago/callback")
 def mercadopago_user_callback(
     db: Session = Depends(get_db),

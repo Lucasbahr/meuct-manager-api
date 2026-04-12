@@ -37,6 +37,18 @@ def test_mercadopago_user_connect_returns_br_auth_url(
     assert "client_id=app_client_id" in url
 
 
+def test_mercadopago_user_status_not_linked(client, admin_token):
+    r = client.get(
+        "/mercadopago/status",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["success"] is True
+    assert body["data"]["has_access_token"] is False
+    assert body["data"]["connected"] is False
+
+
 def test_mercadopago_user_connect_forbidden_for_student(
     client, user_token, monkeypatch
 ):
