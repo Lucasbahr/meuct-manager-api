@@ -123,6 +123,21 @@ resource "google_cloud_run_service" "api" {
           value = var.gcs_provision_tenant_on_create ? "true" : "false"
         }
 
+        env {
+          name  = "MERCADOPAGO_OAUTH_CLIENT_ID"
+          value = var.mercadopago_oauth_client_id
+        }
+
+        env {
+          name  = "MERCADOPAGO_OAUTH_CLIENT_SECRET"
+          value = var.mercadopago_oauth_client_secret
+        }
+
+        env {
+          name  = "MERCADOPAGO_OAUTH_REDIRECT_URI"
+          value = var.mercadopago_oauth_redirect_uri
+        }
+
         ports {
           container_port = 8080
         }

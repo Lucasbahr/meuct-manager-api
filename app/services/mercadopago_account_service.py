@@ -29,24 +29,22 @@ def _as_utc_aware(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def _mp_oauth_test_token() -> bool:
-    raw = (
-        os.getenv("MP_OAUTH_TEST_TOKEN", "").strip()
-        or os.getenv("MERCADOPAGO_OAUTH_TEST_TOKEN", "").strip()
-    )
+def _mercadopago_oauth_test_token() -> bool:
+    raw = os.getenv("MERCADOPAGO_OAUTH_TEST_TOKEN", "").strip()
     return raw.lower() in ("1", "true", "yes")
 
 
-def mp_user_oauth_app_config() -> tuple[str, str, str]:
-    client_id = os.getenv("MP_CLIENT_ID", "").strip()
-    client_secret = os.getenv("MP_CLIENT_SECRET", "").strip()
-    redirect_uri = os.getenv("MP_REDIRECT_URI", "").strip()
+def mercadopago_oauth_app_config() -> tuple[str, str, str]:
+    client_id = os.getenv("MERCADOPAGO_OAUTH_CLIENT_ID", "").strip()
+    client_secret = os.getenv("MERCADOPAGO_OAUTH_CLIENT_SECRET", "").strip()
+    redirect_uri = os.getenv("MERCADOPAGO_OAUTH_REDIRECT_URI", "").strip()
     if not client_id or not client_secret or not redirect_uri:
         raise HTTPException(
             status_code=503,
             detail=(
-                "Mercado Pago OAuth (usuário) não configurado. "
-                "Defina MP_CLIENT_ID, MP_CLIENT_SECRET e MP_REDIRECT_URI."
+                "Mercado Pago OAuth não configurado. Defina "
+                "MERCADOPAGO_OAUTH_CLIENT_ID, MERCADOPAGO_OAUTH_CLIENT_SECRET e "
+                "MERCADOPAGO_OAUTH_REDIRECT_URI."
             ),
         )
     return client_id, client_secret, redirect_uri
@@ -55,19 +53,19 @@ def mp_user_oauth_app_config() -> tuple[str, str, str]:
 def _validate_user_oauth_next_url(next_url: Optional[str]) -> None:
     if not next_url:
         return
-    prefix = os.getenv("MP_OAUTH_SUCCESS_URL_PREFIX", "").strip()
+    prefix = os.getenv("MERCADOPAGO_OAUTH_SUCCESS_URL_PREFIX", "").strip()
     if not prefix:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Para usar next_url, defina MP_OAUTH_SUCCESS_URL_PREFIX "
+                "Para usar next_url, defina MERCADOPAGO_OAUTH_SUCCESS_URL_PREFIX "
                 "(ex.: https://app.suaempresa.com)."
             ),
         )
     if not next_url.startswith(prefix):
         raise HTTPException(
             status_code=400,
-            detail="next_url deve começar com MP_OAUTH_SUCCESS_URL_PREFIX",
+            detail="next_url deve começar com MERCADOPAGO_OAUTH_SUCCESS_URL_PREFIX",
         )
 
 
@@ -92,14 +90,14 @@ def mercadopago_user_authorization_url(
     user_id: int,
     next_url: Optional[str] = None,
 ) -> str:
-    client_id, _, redirect_uri = mp_user_oauth_app_config()
+    client_id, _, redirect_uri = mercadopago_oauth_app_config()
     _validate_user_oauth_next_url(next_url)
     try:
         state = create_mercadopago_user_oauth_state(user_id, next_url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     auth_base = os.getenv(
-        "MP_OAUTH_AUTH_BASE", "https://auth.mercadopago.com.br"
+        "MERCADOPAGO_OAUTH_AUTH_BASE", "https://auth.mercadopago.com.br"
     ).rstrip("/")
     params = {
         "client_id": client_id,
@@ -170,9 +168,12 @@ def mercadopago_user_oauth_handle_callback(
         return {"ok": False, "message": str(e), "redirect": None}
 
     try:
-        client_id, client_secret, redirect_uri = mp_user_oauth_app_config()
+        client_id, client_secret, redirect_uri = mercadopago_oauth_app_config()
     except HTTPException:
-        msg = "Servidor sem MP_CLIENT_ID / MP_CLIENT_SECRET / MP_REDIRECT_URI"
+        msg = (
+            "Servidor sem MERCADOPAGO_OAUTH_CLIENT_ID / "
+            "MERCADOPAGO_OAUTH_CLIENT_SECRET / MERCADOPAGO_OAUTH_REDIRECT_URI"
+        )
         return {
             "ok": False,
             "message": msg,
@@ -185,7 +186,7 @@ def mercadopago_user_oauth_handle_callback(
             client_secret,
             code,
             redirect_uri,
-            test_token=_mp_oauth_test_token(),
+            test_token=_mercadopago_oauth_test_token(),
         )
     except HTTPException as he:
         detail = he.detail
@@ -248,13 +249,13 @@ def ensure_user_mercadopago_access_token(db: Session, account: MercadoPagoAccoun
     if not refresh_plain:
         return plain
 
-    client_id, client_secret, _ = mp_user_oauth_app_config()
+    client_id, client_secret, _ = mercadopago_oauth_app_config()
     try:
         data = pay.mercadopago_oauth_refresh_access_token(
             client_id,
             client_secret,
             refresh_plain,
-            test_token=_mp_oauth_test_token(),
+            test_token=_mercadopago_oauth_test_token(),
         )
     except HTTPException:
         return plain

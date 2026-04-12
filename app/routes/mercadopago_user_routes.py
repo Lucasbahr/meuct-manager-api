@@ -1,8 +1,6 @@
-from html import escape
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.deps import require_academy_admin
@@ -10,6 +8,10 @@ from app.db.deps import get_db
 from app.schemas.mercadopago_user import PaymentPreferenceCreate
 from app.schemas.response import ResponseBase
 from app.services import mercadopago_account_service as mp_user
+from app.services.mercadopago_oauth_dispatch import (
+    dispatch_mercadopago_oauth_callback,
+    mercadopago_oauth_callback_http_response,
+)
 
 router = APIRouter(tags=["Mercado Pago (usuário)"])
 
@@ -18,7 +20,7 @@ router = APIRouter(tags=["Mercado Pago (usuário)"])
 def mercadopago_user_connect(
     next_url: Optional[str] = Query(
         None,
-        description="Opcional: redirect após OAuth (exige MP_OAUTH_SUCCESS_URL_PREFIX)",
+        description="Opcional: redirect após OAuth (exige MERCADOPAGO_OAUTH_SUCCESS_URL_PREFIX)",
     ),
     user=Depends(require_academy_admin),
 ):
@@ -40,22 +42,11 @@ def mercadopago_user_callback(
     error: Optional[str] = Query(None),
     error_description: Optional[str] = Query(None),
 ):
-    """Callback público do Mercado Pago; associa tokens ao usuário indicado em `state`."""
+    """Callback OAuth MP: fluxo por usuário ou loja (mesmo redirect_uri, `state` diferencia)."""
     oauth_err = error or error_description
-    result = mp_user.mercadopago_user_oauth_handle_callback(db, code, state, oauth_err)
+    result, flow = dispatch_mercadopago_oauth_callback(db, code, state, oauth_err)
     db.commit()
-    if result.get("redirect"):
-        return RedirectResponse(result["redirect"], status_code=302)
-    if result["ok"]:
-        return HTMLResponse(
-            "<html><head><meta charset='utf-8'></head><body>"
-            "Mercado Pago conectado à sua conta. Você pode fechar esta aba."
-            "</body></html>"
-        )
-    return HTMLResponse(
-        f"<html><body>Erro: {escape(result['message'])}</body></html>",
-        status_code=400,
-    )
+    return mercadopago_oauth_callback_http_response(result, flow)
 
 
 @router.post("/payments/create", response_model=ResponseBase)

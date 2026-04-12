@@ -150,7 +150,9 @@ jobs:
           TF_VAR_smtp_user: ${{ secrets.SMTP_USER }}
           TF_VAR_smtp_password: ${{ secrets.SMTP_PASSWORD }}
           TF_VAR_base_url: ${{ secrets.BASE_URL }}
-          
+          TF_VAR_mercadopago_oauth_client_id: ${{ secrets.MERCADOPAGO_OAUTH_CLIENT_ID }}
+          TF_VAR_mercadopago_oauth_client_secret: ${{ secrets.MERCADOPAGO_OAUTH_CLIENT_SECRET }}
+          TF_VAR_mercadopago_oauth_redirect_uri: ${{ secrets.MERCADOPAGO_OAUTH_REDIRECT_URI }}
 
   release:
     runs-on: ubuntu-latest
