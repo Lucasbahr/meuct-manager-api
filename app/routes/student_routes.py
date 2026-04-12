@@ -442,11 +442,14 @@ def admin_update_student(
     valid_fields = Student.__table__.columns.keys()
     update_data = data.model_dump(exclude_unset=True)
     modality_ids = update_data.pop("professor_modality_ids", None)
+    modality_id = update_data.pop("modality_id", None)
+    graduation_id = update_data.pop("graduation_id", None)
     for field, value in update_data.items():
         if field not in valid_fields:
             raise HTTPException(status_code=400, detail=f"Campo inválido: {field}")
         setattr(student, field, value)
-    if not update_data and modality_ids is None:
+    has_enrollment_update = modality_id is not None and graduation_id is not None
+    if not update_data and modality_ids is None and not has_enrollment_update:
         raise HTTPException(
             status_code=400, detail="Nenhum campo válido enviado para atualização"
         )
@@ -463,6 +466,15 @@ def admin_update_student(
             sm_svc.clear_student_professor_modalities(db, student.id)
     elif "e_professor" in update_data and not student.e_professor:
         sm_svc.clear_student_professor_modalities(db, student.id)
+
+    if has_enrollment_update:
+        sm_svc.set_student_primary_enrollment(
+            db,
+            gym_id,
+            student_id=student.id,
+            modality_id=modality_id,
+            graduation_id=graduation_id,
+        )
 
     db.commit()
     loaded = sm_svc.load_student_with_modalities(db, student.id) or student

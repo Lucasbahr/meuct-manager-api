@@ -51,6 +51,63 @@ def assert_student_in_gym(db: Session, student_id: int, gym_id: int) -> Student:
     return st
 
 
+def set_student_primary_enrollment(
+    db: Session,
+    gym_id: int,
+    *,
+    student_id: int,
+    modality_id: int,
+    graduation_id: int,
+) -> None:
+    """Atualiza a inscrição principal do aluno (uma linha em student_modalities).
+
+    Preserva `hours_trained` da primeira linha existente. Se houver várias linhas,
+    remove as extras após atualizar a primeira — o formulário admin trata uma
+    modalidade principal por vez.
+    """
+    assert_student_in_gym(db, student_id, gym_id)
+
+    g = (
+        db.query(Graduation)
+        .filter(
+            Graduation.id == graduation_id,
+            Graduation.gym_id == gym_id,
+            Graduation.modality_id == modality_id,
+        )
+        .first()
+    )
+    if not g:
+        raise HTTPException(
+            status_code=400,
+            detail="Graduação inválida para esta modalidade e academia",
+        )
+
+    rows = (
+        db.query(StudentModality)
+        .filter(StudentModality.student_id == student_id)
+        .order_by(StudentModality.id.asc())
+        .all()
+    )
+
+    if not rows:
+        sm = StudentModality(
+            student_id=student_id,
+            modality_id=modality_id,
+            graduation_id=graduation_id,
+            hours_trained=Decimal("0"),
+        )
+        db.add(sm)
+        db.flush()
+        return
+
+    keep = rows[0]
+    keep.modality_id = modality_id
+    keep.graduation_id = graduation_id
+    for extra in rows[1:]:
+        db.delete(extra)
+    db.flush()
+
+
 def add_student_modality(
     db: Session,
     gym_id: int,
