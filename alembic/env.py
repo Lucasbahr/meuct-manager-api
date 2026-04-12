@@ -33,9 +33,6 @@ target_metadata = Base.metadata
 # ... etc.
 
 
-print(Base.metadata.tables.keys())
-
-
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 

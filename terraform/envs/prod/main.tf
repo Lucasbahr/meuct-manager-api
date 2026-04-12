@@ -10,6 +10,22 @@ resource "google_service_account_iam_member" "ci_act_as" {
   member             = "serviceAccount:${var.ci_service_account}"
 }
 
+locals {
+  media_bucket_name = "${var.service_name}-media-${var.environment}-${substr(replace(var.project_id, "_", "-"), 0, 12)}"
+}
+
+resource "google_storage_bucket" "media" {
+  name                        = local.media_bucket_name
+  location                    = var.region
+  uniform_bucket_level_access = true
+}
+
+resource "google_storage_bucket_iam_member" "run_sa_media_admin" {
+  bucket = google_storage_bucket.media.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.run_sa.email}"
+}
+
 
 resource "google_cloud_run_service" "api" {
   name     = "${var.service_name}-${var.environment}"
@@ -40,6 +56,71 @@ resource "google_cloud_run_service" "api" {
         env {
           name  = "ALGORITHM"
           value = var.algorithm
+        }
+        
+        env {
+          name  = "SMTP_HOST"
+          value = var.smtp_host
+        }
+
+        env {
+          name  = "SMTP_PORT"
+          value = tostring(var.smtp_port)
+        }
+
+        env {
+          name  = "SMTP_USER"
+          value = var.smtp_user
+        }
+
+        env {
+          name  = "SMTP_PASSWORD"
+          value = var.smtp_password
+        }
+
+        env {
+          name  = "SMTP_HOST"
+          value = var.smtp_host
+        }
+
+        env {
+          name  = "SMTP_PORT"
+          value = tostring(var.smtp_port)
+        }
+
+        env {
+          name  = "SMTP_USER"
+          value = var.smtp_user
+        }
+
+        env {
+          name  = "SMTP_PASSWORD"
+          value = var.smtp_password
+        }
+
+        env {
+          name  = "BASE_URL"
+          value = var.base_url
+        }
+
+        env {
+          name  = "STORAGE_PROVIDER"
+          value = "gcs"
+        }
+
+        env {
+          name  = "GCS_BUCKET_NAME"
+          value = google_storage_bucket.media.name
+        }
+
+        env {
+          name  = "GCS_TENANT_PREFIX"
+          value = var.gcs_tenant_prefix
+        }
+
+        env {
+          name  = "GCS_PROVISION_TENANT_ON_CREATE"
+          value = var.gcs_provision_tenant_on_create ? "true" : "false"
         }
 
         ports {

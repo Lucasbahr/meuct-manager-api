@@ -45,7 +45,9 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-
+    env:
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,7 +64,11 @@ jobs:
         run: sleep 20
 
       - name: Test API health
-        run: curl --fail http://localhost:8000/health
+        run: curl --fail http://localhost:8080/health
+
+      - name: Show docker logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
 
       - name: Stop containers
         run: docker compose  down
@@ -139,6 +145,12 @@ jobs:
           TF_VAR_environment: ${{ env.ENVIRONMENT }}
           TF_VAR_image: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/meuct/meuct-api:${{ env.ENVIRONMENT }}-${{ github.sha }}
           TF_VAR_database_url: ${{ github.ref == 'refs/heads/master' && secrets.DATABASE_URL_PROD || secrets.DATABASE_URL_HML }}
+          TF_VAR_smtp_host: smtp.gmail.com
+          TF_VAR_smtp_port: 587
+          TF_VAR_smtp_user: ${{ secrets.SMTP_USER }}
+          TF_VAR_smtp_password: ${{ secrets.SMTP_PASSWORD }}
+          TF_VAR_base_url: ${{ secrets.BASE_URL }}
+          
 
   release:
     runs-on: ubuntu-latest
