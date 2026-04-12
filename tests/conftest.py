@@ -20,6 +20,8 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 @pytest.fixture(autouse=True)
 def upload_dir_tmp(monkeypatch, tmp_path):
     monkeypatch.setenv("UPLOAD_DIR", str(tmp_path / "uploads"))
+    monkeypatch.setenv("STRICT_PAYMENT_WEBHOOKS", "false")
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
     yield
 
 
@@ -127,6 +129,86 @@ def ensure_default_gym(db):
         db.commit()
 
 
+@pytest.fixture(autouse=True)
+def ensure_default_gym(db):
+    from decimal import Decimal
+
+    from app.models.graduation import Graduation
+    from app.models.gym import Gym
+    from app.models.modality import Modality
+    from app.models.tenant_config import TenantConfig
+
+    if db.query(Gym).filter(Gym.id == 1).first() is None:
+        db.add(Gym(id=1, name="Test Gym", slug="test-gym"))
+        db.commit()
+
+    if db.query(TenantConfig).filter(TenantConfig.gym_id == 1).first() is None:
+        db.add(TenantConfig(gym_id=1))
+        db.commit()
+
+    m = db.query(Modality).filter(Modality.name == "Muay Thai").first()
+    if not m:
+        m = Modality(name="Muay Thai")
+        db.add(m)
+        db.flush()
+    has_g = (
+        db.query(Graduation)
+        .filter(Graduation.gym_id == 1, Graduation.modality_id == m.id)
+        .first()
+    )
+    if not has_g:
+        db.add(
+            Graduation(
+                gym_id=1,
+                modality_id=m.id,
+                name="Branca",
+                level=1,
+                required_hours=Decimal("10"),
+            )
+        )
+        db.add(
+            Graduation(
+                gym_id=1,
+                modality_id=m.id,
+                name="Azul",
+                level=2,
+                required_hours=Decimal("20"),
+            )
+        )
+        db.commit()
+
+    m = db.query(Modality).filter(Modality.name == "Muay Thai").first()
+    if not m:
+        m = Modality(name="Muay Thai")
+        db.add(m)
+        db.flush()
+    has_g = (
+        db.query(Graduation)
+        .filter(Graduation.gym_id == 1, Graduation.modality_id == m.id)
+        .first()
+    )
+    if not has_g:
+        db.add(
+            Graduation(
+                gym_id=1,
+                modality_id=m.id,
+                name="Branca",
+                level=1,
+                required_hours=Decimal("10"),
+            )
+        )
+        db.add(
+            Graduation(
+                gym_id=1,
+                modality_id=m.id,
+                name="Azul",
+                level=2,
+                required_hours=Decimal("20"),
+            )
+        )
+        db.commit()
+
+
 @pytest.fixture
 def client(db):
     def override_get_db():
@@ -150,6 +232,11 @@ def user(db):
 @pytest.fixture
 def admin_user(db):
     return create_user(
+        db=db,
+        email="admin@test.com",
+        password="123456",
+        role="ADMIN_ACADEMIA",
+        is_verified=True,
         db=db,
         email="admin@test.com",
         password="123456",

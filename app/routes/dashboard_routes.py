@@ -12,7 +12,9 @@ from app.models.checkin import Checkin
 from app.models.student import Student
 from app.models.user import User
 from app.schemas.response import ResponseBase
+from app.schemas.dashboard_analytics import DashboardAnalyticsOut
 from app.schemas.sales_dashboard import GymSalesDashboardOut
+from app.services import dashboard_analytics_service as dash_analytics
 from app.services import sales_dashboard_service as sales_dash
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -100,12 +102,25 @@ def dashboard_academy(
     )
     week_cutoff_utc = datetime.now(timezone.utc) - timedelta(days=7)
 
+    alunos_total = (
+        db.query(func.count(Student.id))
+        .join(User, User.id == Student.user_id)
+        .filter(User.gym_id == gym_id)
+        .scalar()
+        or 0
+    )
+
     alunos_ativos = (
         db.query(func.count(Student.id))
         .join(User, User.id == Student.user_id)
-        .filter(User.gym_id == gym_id, Student.status == "ativo")
+        .filter(
+            User.gym_id == gym_id,
+            func.lower(func.coalesce(Student.status, "")) == "ativo",
+        )
         .scalar()
+        or 0
     )
+    alunos_inativos = max(0, int(alunos_total) - int(alunos_ativos))
 
     checkins_hoje = (
         db.query(func.count(Checkin.id))
@@ -169,7 +184,9 @@ def dashboard_academy(
         "data": {
             "gym_id": gym_id,
             "resumo": {
-                "alunos_ativos": alunos_ativos or 0,
+                "alunos_total": int(alunos_total),
+                "alunos_ativos": int(alunos_ativos),
+                "alunos_inativos": int(alunos_inativos),
                 "checkins_hoje": checkins_hoje or 0,
                 "checkins_ultimos_7_dias": checkins_7d or 0,
             },
@@ -180,6 +197,41 @@ def dashboard_academy(
                 _serialize_audit(e, include_actor_email=True) for e in audit_rows
             ],
         },
+    }
+
+
+@router.get("/analytics", response_model=ResponseBase)
+def dashboard_analytics(
+    _staff=Depends(require_staff),
+    db: Session = Depends(get_db),
+    gym_id: int = Depends(require_gym_id),
+    year: int | None = Query(
+        None,
+        ge=2000,
+        le=2100,
+        description="Ano civil (America/Sao_Paulo). Padrão: mês atual.",
+    ),
+    month: int | None = Query(
+        None,
+        ge=1,
+        le=12,
+        description="Mês (1–12). Padrão: mês atual.",
+    ),
+):
+    """
+    Painel executivo: totais de alunos (ativos/inativos), novos no mês vs mês anterior,
+    receita de produtos (pedidos pagos), mensalidades (pagamentos `paid`) e total combinado.
+    """
+    try:
+        data = dash_analytics.gym_dashboard_analytics(
+            db, gym_id, year=year, month=month
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return {
+        "success": True,
+        "message": "Analytics da academia",
+        "data": DashboardAnalyticsOut.model_validate(data).model_dump(),
     }
 
 

@@ -228,3 +228,36 @@ def mercadopago_oauth_exchange_code(
             detail=f"Mercado Pago OAuth token falhou: {r.status_code} {r.text[:500]}",
         )
     return r.json()
+
+
+def mercadopago_oauth_refresh_access_token(
+    client_id: str,
+    client_secret: str,
+    refresh_token: str,
+    *,
+    test_token: bool = False,
+) -> dict[str, Any]:
+    """Renova access_token usando refresh_token (OAuth conta vendedor)."""
+    data: dict[str, Any] = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+    }
+    if test_token:
+        data["test_token"] = "true"
+    with httpx.Client(timeout=45.0) as client:
+        r = client.post(
+            f"{MERCADOPAGO_API}/oauth/token",
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data=data,
+        )
+    if r.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Mercado Pago refresh token falhou: {r.status_code} {r.text[:500]}",
+        )
+    return r.json()

@@ -39,6 +39,16 @@ def test_register_duplicate_email_case_insensitive(client):
     assert response.status_code in [400, 409]
 
 
+def test_register_duplicate_email_case_insensitive(client):
+    client.post(
+        "/auth/register", json={"email": "Case@Teste.com", "password": "123456"}
+    )
+    response = client.post(
+        "/auth/register", json={"email": "case@teste.com", "password": "123456"}
+    )
+    assert response.status_code in [400, 409]
+
+
 # =========================
 # LOGIN
 # =========================
@@ -53,6 +63,7 @@ def test_login_success(client, db):
 
     assert response.status_code == 200
     assert "access_token" in response.json()["data"]
+    assert "refresh_token" in response.json()["data"]
     assert "refresh_token" in response.json()["data"]
 
 
@@ -83,12 +94,24 @@ def test_login_case_insensitive_email(client, db):
     assert "access_token" in response.json()["data"]
 
 
+def test_login_case_insensitive_email(client, db):
+    create_user(db, "caps@teste.com", "123456")
+    response = client.post(
+        "/auth/login", json={"email": "CAPS@TESTE.COM", "password": "123456"}
+    )
+    assert response.status_code == 200
+    assert "access_token" in response.json()["data"]
+
+
 # =========================
 # VERIFY EMAIL
 # =========================
 
 
 def test_verify_email_success(client, db):
+    user = User(
+        gym_id=1, email="verify@teste.com", password="123", role="ALUNO"
+    )
     user = User(
         gym_id=1, email="verify@teste.com", password="123", role="ALUNO"
     )
@@ -148,11 +171,24 @@ def test_forgot_password_existing_user(client, db):
     user = User(
         gym_id=1, email="forgot@teste.com", password="123", role="ALUNO"
     )
+    user = User(
+        gym_id=1, email="forgot@teste.com", password="123", role="ALUNO"
+    )
     db.add(user)
     db.commit()
 
     response = client.post("/auth/forgot-password?email=forgot@teste.com")
 
+    assert response.status_code == 200
+
+
+def test_forgot_password_case_insensitive(client, db):
+    user = User(
+        gym_id=1, email="mixed@teste.com", password="123", role="ALUNO"
+    )
+    db.add(user)
+    db.commit()
+    response = client.post("/auth/forgot-password?email=MIXED@TESTE.COM")
     assert response.status_code == 200
 
 
@@ -178,6 +214,9 @@ def test_forgot_password_non_existing(client):
 
 
 def test_reset_password_success(client, db):
+    user = User(
+        gym_id=1, email="reset@teste.com", password="123", role="ALUNO"
+    )
     user = User(
         gym_id=1, email="reset@teste.com", password="123", role="ALUNO"
     )
@@ -279,3 +318,48 @@ def test_logout_revokes_refresh_token(client, db):
 
     retry = client.post(f"/auth/refresh?refresh_token={refresh_token}")
     assert retry.status_code == 401
+
+
+def test_refresh_token_rejected_as_bearer_on_protected_route(client, db):
+    create_user(db, "bearer_refresh@teste.com", "123456")
+    login = client.post(
+        "/auth/login",
+        json={"email": "bearer_refresh@teste.com", "password": "123456"},
+    )
+    refresh_token = login.json()["data"]["refresh_token"]
+
+    response = client.put(
+        "/auth/change-password",
+        params={"current_password": "123456", "new_password": "654321"},
+        headers={"Authorization": f"Bearer {refresh_token}"},
+    )
+    assert response.status_code == 401
+
+
+def test_register_blocked_without_registration_secret_when_env_set(client, monkeypatch):
+    monkeypatch.setenv("REGISTRATION_SECRET", "only-known-by-admin")
+    r = client.post(
+        "/auth/register",
+        json={"email": "gate@teste.com", "password": "123456"},
+    )
+    assert r.status_code == 403
+
+    r2 = client.post(
+        "/auth/register",
+        json={
+            "email": "gate2@teste.com",
+            "password": "123456",
+            "registration_secret": "wrong",
+        },
+    )
+    assert r2.status_code == 403
+
+    r3 = client.post(
+        "/auth/register",
+        json={
+            "email": "gate3@teste.com",
+            "password": "123456",
+            "registration_secret": "only-known-by-admin",
+        },
+    )
+    assert r3.status_code == 200

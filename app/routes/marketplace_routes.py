@@ -1,8 +1,8 @@
-from html import escape
+import json
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_academy_admin, require_gym_id
@@ -20,6 +20,14 @@ from app.schemas.marketplace import (
 )
 from app.schemas.response import ResponseBase
 from app.services import marketplace_service as msvc
+from app.services.mercadopago_oauth_dispatch import (
+    dispatch_mercadopago_oauth_callback,
+    mercadopago_oauth_callback_http_response,
+)
+from app.services.payment_webhook_security import (
+    require_mercadopago_webhook_verified,
+    require_paypal_webhook_verified,
+)
 
 router = APIRouter(tags=["Marketplace"])
 
@@ -168,6 +176,27 @@ def admin_payment_config(
     }
 
 
+@router.get("/payment/config", response_model=ResponseBase)
+def admin_get_payment_config(
+    provider: Literal["mercado_pago", "paypal"] = Query("mercado_pago"),
+    _admin=Depends(require_academy_admin),
+    db: Session = Depends(get_db),
+    gym_id: int = Depends(require_gym_id),
+):
+    row = msvc.get_payment_settings_row(db, gym_id, provider)
+    if not row:
+        return {
+            "success": True,
+            "message": "Sem configuração salva",
+            "data": None,
+        }
+    return {
+        "success": True,
+        "message": "OK",
+        "data": msvc.payment_settings_to_out(row),
+    }
+
+
 @router.post("/payment/mercado-pago/oauth/start", response_model=ResponseBase)
 def mercadopago_oauth_start(
     body: MercadoPagoOAuthStart = MercadoPagoOAuthStart(),
@@ -183,6 +212,19 @@ def mercadopago_oauth_start(
     }
 
 
+def _mercadopago_oauth_callback_response(
+    db: Session,
+    code: Optional[str],
+    state: Optional[str],
+    error: Optional[str],
+    error_description: Optional[str],
+):
+    oauth_err = error or error_description
+    result = dispatch_mercadopago_oauth_callback(db, code, state, oauth_err)
+    db.commit()
+    return mercadopago_oauth_callback_http_response(result)
+
+
 @router.get("/payment/mercado-pago/oauth/callback")
 def mercadopago_oauth_callback(
     db: Session = Depends(get_db),
@@ -191,18 +233,22 @@ def mercadopago_oauth_callback(
     error: Optional[str] = Query(None),
     error_description: Optional[str] = Query(None),
 ):
-    oauth_err = error or error_description
-    result = msvc.mercadopago_oauth_handle_callback(db, code, state, oauth_err)
-    db.commit()
-    if result.get("redirect"):
-        return RedirectResponse(result["redirect"], status_code=302)
-    if result["ok"]:
-        return HTMLResponse(
-            "<html><body>Mercado Pago conectado à academia. Você pode fechar esta aba.</body></html>"
-        )
-    return HTMLResponse(
-        f"<html><body>Erro: {escape(result['message'])}</body></html>",
-        status_code=400,
+    return _mercadopago_oauth_callback_response(
+        db, code, state, error, error_description
+    )
+
+
+@router.get("/mercadopago/callback")
+def mercadopago_oauth_callback_redirect_uri_legacy(
+    db: Session = Depends(get_db),
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
+    error_description: Optional[str] = Query(None),
+):
+    """Alias para `MERCADOPAGO_OAUTH_REDIRECT_URI` já cadastrado como `/mercadopago/callback`."""
+    return _mercadopago_oauth_callback_response(
+        db, code, state, error, error_description
     )
 
 
@@ -307,7 +353,14 @@ def checkout_route(
 
 @router.post("/webhooks/paypal/{gym_id}")
 async def webhook_paypal(gym_id: int, request: Request, db: Session = Depends(get_db)):
-    body = await request.json()
+    raw = await request.body()
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="JSON inválido")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Payload inválido")
+    require_paypal_webhook_verified(request, body)
     result = msvc.handle_paypal_webhook(db, gym_id, body)
     db.commit()
     return result
@@ -317,7 +370,14 @@ async def webhook_paypal(gym_id: int, request: Request, db: Session = Depends(ge
 async def webhook_mercado_pago(
     gym_id: int, request: Request, db: Session = Depends(get_db)
 ):
-    body = await request.json()
+    raw = await request.body()
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="JSON inválido")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Payload inválido")
+    require_mercadopago_webhook_verified(request, body)
     result = msvc.handle_mercadopago_webhook(db, gym_id, body)
     db.commit()
     return result
