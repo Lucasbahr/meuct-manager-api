@@ -116,6 +116,47 @@ def test_admin_update_student(client, admin_token, db):
     assert data["data"]["nome"] == "Atualizado pelo admin"
 
 
+def test_admin_sets_professor_modalities(client, admin_token, db):
+    from app.models.modality import Modality
+    from app.models.student import Student
+    from app.services.user_service import create_user
+
+    aluno = create_user(db, "prof-mod@test.com", "123456")
+    student = Student(
+        user_id=aluno.id,
+        nome="Professor X",
+        telefone="11999999999",
+    )
+    db.add(student)
+    db.commit()
+    db.refresh(student)
+
+    m = db.query(Modality).filter(Modality.name == "Muay Thai").first()
+    assert m is not None
+
+    r = client.put(
+        f"/students/{student.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"professor_modality_ids": [m.id]},
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    assert data["e_professor"] is True
+    assert len(data["professor_modalities"]) == 1
+    assert data["professor_modalities"][0]["modality_id"] == m.id
+    assert data["professor_modalities"][0]["modality_name"] == "Muay Thai"
+
+    r2 = client.put(
+        f"/students/{student.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"e_professor": False},
+    )
+    assert r2.status_code == 200
+    cleared = r2.json()["data"]
+    assert cleared["e_professor"] is False
+    assert cleared["professor_modalities"] == []
+
+
 def test_user_cannot_update_other_student(client, user_token, db):
     from app.models.student import Student
     from app.services.user_service import create_user

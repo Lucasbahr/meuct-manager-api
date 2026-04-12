@@ -40,13 +40,29 @@ def _paypal_oauth(creds: ProviderCredentials) -> str:
         return r.json()["access_token"]
 
 
+def _paypal_checkout_approval_href(data: dict) -> str | None:
+    """Orders v2: fluxo atual usa `payer-action`; respostas antigas traziam `approve`."""
+    links = data.get("links") or []
+    for rel in ("payer-action", "approve"):
+        for link in links:
+            if link.get("rel") == rel:
+                href = link.get("href")
+                if isinstance(href, str) and href.startswith("http"):
+                    return href
+    return None
+
+
 def paypal_create_checkout(
     creds: ProviderCredentials,
     order: ShopOrder,
     return_url: str,
     cancel_url: str,
 ) -> tuple[str, str]:
-    """Retorna (approval_url, paypal_order_id)."""
+    """Retorna (url de checkout no navegador, paypal_order_id).
+
+    Modelo atual da Orders API: `payment_source.paypal.experience_context`
+    (substitui `application_context`, hoje marcado como deprecated).
+    """
     access = _paypal_oauth(creds)
     total = format(Decimal(str(order.total_amount)), "f")
     body: dict[str, Any] = {
@@ -62,10 +78,15 @@ def paypal_create_checkout(
                 },
             }
         ],
-        "application_context": {
-            "return_url": return_url,
-            "cancel_url": cancel_url,
-            "user_action": "PAY_NOW",
+        "payment_source": {
+            "paypal": {
+                "experience_context": {
+                    "return_url": return_url,
+                    "cancel_url": cancel_url,
+                    "user_action": "PAY_NOW",
+                    "shipping_preference": "NO_SHIPPING",
+                }
+            }
         },
     }
     with httpx.Client(timeout=45.0) as client:
@@ -84,16 +105,13 @@ def paypal_create_checkout(
             )
         data = r.json()
         order_id = data["id"]
-        approve = next(
-            (l for l in data.get("links", []) if l.get("rel") == "approve"),
-            None,
-        )
-        if not approve or not approve.get("href"):
+        href = _paypal_checkout_approval_href(data)
+        if not href:
             raise HTTPException(
                 status_code=502,
-                detail="PayPal não retornou link de aprovação",
+                detail="PayPal não retornou link de aprovação (payer-action/approve)",
             )
-        return approve["href"], order_id
+        return href, order_id
 
 
 def mercadopago_create_preference(
@@ -102,8 +120,10 @@ def mercadopago_create_preference(
     items: list[OrderItem],
     return_url: str,
     cancel_url: str,
+    *,
+    gym_id: int,
 ) -> tuple[str, str]:
-    """Retorna (init_point, preference_id). Usa access_token da conta do vendedor."""
+    """Retorna (init_point, preference_id). Usa access_token da conta do vendedor (Checkout Pro)."""
     if not creds.access_token:
         raise HTTPException(
             status_code=400,
@@ -120,9 +140,10 @@ def mercadopago_create_preference(
                 "currency_id": "BRL",
             }
         )
-    body = {
+    body: dict[str, Any] = {
         "items": mp_items,
         "external_reference": str(order.id),
+        "metadata": {"order_id": str(order.id), "gym_id": str(gym_id)},
         "back_urls": {
             "success": return_url,
             "failure": cancel_url,
@@ -130,6 +151,9 @@ def mercadopago_create_preference(
         },
         "auto_return": "approved",
     }
+    base = os.getenv("BASE_URL", "").strip().rstrip("/")
+    if base:
+        body["notification_url"] = f"{base}/webhooks/mercado-pago/{gym_id}"
     with httpx.Client(timeout=45.0) as client:
         r = client.post(
             f"{MERCADOPAGO_API}/checkout/preferences",
@@ -150,9 +174,9 @@ def mercadopago_create_preference(
         if not pref_id or not url:
             raise HTTPException(
                 status_code=502,
-                detail="Mercado Pago não retornou init_point",
+                detail="Mercado Pago não retornou init_point / sandbox_init_point",
             )
-        return url, pref_id
+        return str(url), str(pref_id)
 
 
 def mercadopago_fetch_payment(creds: ProviderCredentials, payment_id: str) -> dict:

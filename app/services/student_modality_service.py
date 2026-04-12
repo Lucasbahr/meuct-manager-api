@@ -10,8 +10,13 @@ from app.models.graduation import Graduation
 from app.models.modality import Modality
 from app.models.student import Student
 from app.models.student_modality import StudentModality
+from app.models.student_professor_modality import StudentProfessorModality
 from app.models.user import User
-from app.schemas.student import StudentModalityItem, StudentResponse
+from app.schemas.student import (
+    ProfessorModalityItem,
+    StudentModalityItem,
+    StudentResponse,
+)
 from app.services import training_service as training_svc
 
 
@@ -25,6 +30,9 @@ def load_student_with_modalities(db: Session, student_id: int) -> Optional[Stude
             ),
             selectinload(Student.student_modalities).selectinload(
                 StudentModality.graduation
+            ),
+            selectinload(Student.professor_modalities).selectinload(
+                StudentProfessorModality.modality
             ),
         )
         .first()
@@ -95,6 +103,47 @@ def add_student_modality(
     return sm
 
 
+def clear_student_professor_modalities(db: Session, student_id: int) -> None:
+    db.query(StudentProfessorModality).filter(
+        StudentProfessorModality.student_id == student_id
+    ).delete(synchronize_session=False)
+
+
+def set_student_professor_modalities(
+    db: Session,
+    gym_id: int,
+    student_id: int,
+    modality_ids: List[int],
+) -> None:
+    assert_student_in_gym(db, student_id, gym_id)
+    seen: set[int] = set()
+    clean_ids: List[int] = []
+    for mid in modality_ids:
+        if mid in seen:
+            continue
+        seen.add(mid)
+        clean_ids.append(mid)
+    for mid in clean_ids:
+        m = db.query(Modality).filter(Modality.id == mid).first()
+        if not m:
+            raise HTTPException(status_code=400, detail="Modalidade inválida")
+        has_graduation = (
+            db.query(Graduation.id)
+            .filter(Graduation.gym_id == gym_id, Graduation.modality_id == mid)
+            .first()
+        )
+        if not has_graduation:
+            raise HTTPException(
+                status_code=400,
+                detail="Modalidade indisponível nesta academia",
+            )
+    clear_student_professor_modalities(db, student_id)
+    for mid in clean_ids:
+        db.add(
+            StudentProfessorModality(student_id=student_id, modality_id=mid)
+        )
+
+
 def list_student_modalities_items(
     db: Session, gym_id: int, student_id: int
 ) -> List[StudentModalityItem]:
@@ -144,8 +193,28 @@ def student_to_response(student: Student) -> StudentResponse:
                 hours_trained=sm.hours_trained,
             )
         )
+    prof_meds: List[ProfessorModalityItem] = []
+    for pm in student.professor_modalities:
+        if pm.modality is None:
+            continue
+        prof_meds.append(
+            ProfessorModalityItem(
+                id=pm.id,
+                modality_id=pm.modality_id,
+                modality_name=pm.modality.name,
+            )
+        )
     base = StudentResponse.model_validate(student)
-    return base.model_copy(update={"modalities": meds})
+    legacy_mod = meds[0].modality_name if meds else None
+    legacy_grad = meds[0].graduation_name if meds else None
+    return base.model_copy(
+        update={
+            "modalities": meds,
+            "professor_modalities": prof_meds,
+            "modalidade": legacy_mod,
+            "graduacao": legacy_grad,
+        }
+    )
 
 
 def ensure_default_enrollment(

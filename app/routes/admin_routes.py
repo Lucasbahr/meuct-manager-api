@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -20,12 +20,13 @@ from app.models.user import User
 from app.schemas.response import ResponseBase
 from app.schemas.sales_dashboard import PlatformAdminDashboardOut
 from app.services import sales_dashboard_service as sales_dash
-from app.services.user_service import get_user_by_email
+from app.services.user_service import create_user, get_user_by_email
 from app.services.student_photo import delete_student_photo
 from app.services.audit_service import (
     record_audit_event,
     ACTION_USER_ROLE_CHANGED,
     ACTION_USER_DELETED,
+    ACTION_USER_PROVISIONED,
 )
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -44,11 +45,86 @@ class UserRoleUpdate(BaseModel):
     role: str
 
 
+class UserProvisionBody(BaseModel):
+    """Cria usuário já verificado na academia do contexto (`X-Gym-Id` / gym do token)."""
+
+    email: str
+    password: str = Field(..., min_length=6)
+    role: str
+
+
 def _parse_target_role(raw: str) -> str:
     key = raw.strip().upper()
     if key not in _ROLE_INPUT:
         raise HTTPException(status_code=400, detail="Role inválida")
     return _ROLE_INPUT[key]
+
+
+@router.post("/users/provision", response_model=ResponseBase)
+def admin_provision_user(
+    data: UserProvisionBody,
+    db: Session = Depends(get_db),
+    admin=Depends(require_academy_admin),
+    gym_id: int = Depends(require_gym_id),
+):
+    """Admin academia ou admin sistema (com `X-Gym-Id`): cria login para equipe/aluno."""
+    email = data.email.strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email obrigatório")
+    pwd = (data.password or "").strip()
+    if len(pwd) < 6:
+        raise HTTPException(
+            status_code=400, detail="Senha deve ter pelo menos 6 caracteres",
+        )
+
+    new_role = _parse_target_role(data.role)
+    if new_role == ADMIN_SISTEMA:
+        raise HTTPException(
+            status_code=400,
+            detail="Perfil ADMIN_SISTEMA não pode ser criado por este endpoint",
+        )
+
+    actor_role = normalize_role(admin.get("role"))
+    if actor_role == ADMIN_ACADEMIA and new_role not in {
+        ADMIN_ACADEMIA,
+        PROFESSOR,
+        ALUNO,
+    }:
+        raise HTTPException(status_code=400, detail="Role inválida para admin da academia")
+
+    if get_user_by_email(db, email):
+        raise HTTPException(status_code=400, detail="Email já cadastrado")
+
+    user = create_user(
+        db,
+        email,
+        pwd,
+        role=new_role,
+        gym_id=gym_id,
+        is_verified=True,
+    )
+    record_audit_event(
+        db,
+        actor_user_id=admin["user_id"],
+        gym_id=gym_id,
+        action=ACTION_USER_PROVISIONED,
+        target_type="user",
+        target_id=user.id,
+        details={"email": user.email, "role": new_role},
+    )
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "success": True,
+        "message": "Usuário criado na academia (já pode fazer login)",
+        "data": {
+            "id": user.id,
+            "email": user.email,
+            "role": user.role,
+            "gym_id": user.gym_id,
+        },
+    }
 
 
 @router.put("/users/role", response_model=ResponseBase)

@@ -17,6 +17,7 @@ from app.core.roles import is_staff, normalize_role
 from app.db.deps import get_db
 from app.models.student import Student
 from app.models.student_modality import StudentModality as StudentModalityRow
+from app.models.student_professor_modality import StudentProfessorModality
 from app.models.checkin import Checkin
 from app.models.user import User
 from app.schemas.student import (
@@ -56,6 +57,9 @@ def list_students(
             selectinload(Student.student_modalities).selectinload(
                 StudentModalityRow.graduation
             ),
+            selectinload(Student.professor_modalities).selectinload(
+                StudentProfessorModality.modality
+            ),
         )
     )
     if status:
@@ -84,6 +88,7 @@ def create_student(
         nome=data.nome,
         telefone=data.telefone,
         e_atleta=data.e_atleta,
+        e_professor=data.e_professor,
         cartel_mma=data.cartel_mma,
         cartel_jiu=data.cartel_jiu,
         cartel_k1=data.cartel_k1,
@@ -138,6 +143,8 @@ def get_my_student(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
+    sm_svc.ensure_default_enrollment(db, gym_id, student.id)
+    db.commit()
     loaded = sm_svc.load_student_with_modalities(db, student.id) or student
     return {
         "success": True,
@@ -175,24 +182,6 @@ def list_athletes_directory(
         "success": True,
         "message": "Atletas",
         "data": [sm_svc.student_to_response(s).model_dump() for s in students],
-    }
-
-
-@router.get("/alerts", response_model=ResponseBase)
-def students_subscription_alerts(
-    _staff=Depends(require_staff),
-    db: Session = Depends(get_db),
-    gym_id: int = Depends(require_gym_id),
-):
-    raw = membership_svc.build_students_alerts(db, gym_id)
-    out = StudentsAlertsOut(
-        due_soon=[StudentAlertItem(**x) for x in raw["due_soon"]],
-        overdue=[StudentAlertItem(**x) for x in raw["overdue"]],
-    )
-    return {
-        "success": True,
-        "message": "Alertas de vencimento e atraso (mensalidades)",
-        "data": out.model_dump(),
     }
 
 
@@ -452,15 +441,28 @@ def admin_update_student(
 
     valid_fields = Student.__table__.columns.keys()
     update_data = data.model_dump(exclude_unset=True)
+    modality_ids = update_data.pop("professor_modality_ids", None)
     for field, value in update_data.items():
         if field not in valid_fields:
             raise HTTPException(status_code=400, detail=f"Campo inválido: {field}")
         setattr(student, field, value)
-    if not update_data:
+    if not update_data and modality_ids is None:
         raise HTTPException(
             status_code=400, detail="Nenhum campo válido enviado para atualização"
         )
     student.updated_at = datetime.now(timezone.utc)
+
+    if modality_ids is not None:
+        if modality_ids:
+            if not student.e_professor:
+                student.e_professor = True
+            sm_svc.set_student_professor_modalities(
+                db, gym_id, student.id, modality_ids
+            )
+        else:
+            sm_svc.clear_student_professor_modalities(db, student.id)
+    elif "e_professor" in update_data and not student.e_professor:
+        sm_svc.clear_student_professor_modalities(db, student.id)
 
     db.commit()
     loaded = sm_svc.load_student_with_modalities(db, student.id) or student

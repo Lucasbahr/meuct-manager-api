@@ -24,6 +24,33 @@ from app.services import marketplace_service as msvc
 router = APIRouter(tags=["Marketplace"])
 
 
+# --- Retorno do checkout no mobile (navegador externo) ---
+
+
+@router.get("/payment/mobile-return", response_class=HTMLResponse)
+def payment_mobile_return():
+    """Após pagamento aprovado (PayPal / Mercado Pago); o app abre em navegador externo."""
+    return HTMLResponse(
+        "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+        "<title>Pagamento</title></head><body style='font-family:system-ui;padding:24px;"
+        "background:#121212;color:#eee;text-align:center'>"
+        "<p style='font-size:18px'>Pagamento concluído.</p>"
+        "<p style='opacity:.75'>Feche esta aba e volte ao aplicativo.</p></body></html>"
+    )
+
+
+@router.get("/payment/mobile-cancel", response_class=HTMLResponse)
+def payment_mobile_cancel():
+    """Usuário cancelou no fluxo do provedor."""
+    return HTMLResponse(
+        "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+        "<title>Pagamento</title></head><body style='font-family:system-ui;padding:24px;"
+        "background:#121212;color:#eee;text-align:center'>"
+        "<p style='font-size:18px'>Pagamento cancelado.</p>"
+        "<p style='opacity:.75'>Feche esta aba e volte ao aplicativo.</p></body></html>"
+    )
+
+
 # --- Admin (academia / sistema na academia) ---
 
 

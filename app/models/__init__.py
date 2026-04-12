@@ -9,6 +9,7 @@ from .audit_event import AuditEvent  # noqa: F401
 from .modality import Modality  # noqa: F401
 from .graduation import Graduation  # noqa: F401
 from .student_modality import StudentModality  # noqa: F401
+from .student_professor_modality import StudentProfessorModality  # noqa: F401
 from .student_graduation_history import StudentGraduationHistory  # noqa: F401
 from .gamification import Badge, StudentBadge, StudentStats, XpLog  # noqa: F401
 from .marketplace import (  # noqa: F401

@@ -87,3 +87,4 @@ class GymScheduleSlot(Base):
 
     gym = relationship("Gym", back_populates="gym_schedule_slots")
     gym_class = relationship("GymClass", back_populates="schedule_slots")
+    checkins = relationship("Checkin", back_populates="schedule_slot")

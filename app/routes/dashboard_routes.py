@@ -140,6 +140,29 @@ def dashboard_academy(
         .all()
     )
 
+    aluno_role = "ALUNO"
+    logins_alunos_rows = (
+        db.query(User)
+        .filter(User.gym_id == gym_id, func.upper(User.role) == aluno_role)
+        .order_by(User.last_login_at.desc())
+        .limit(logins_limit)
+        .all()
+    )
+    logins_equipe_rows = (
+        db.query(User)
+        .filter(User.gym_id == gym_id, func.upper(User.role) != aluno_role)
+        .order_by(User.last_login_at.desc())
+        .limit(logins_limit)
+        .all()
+    )
+
+    def _login_row(u: User) -> dict:
+        return {
+            "email": u.email,
+            "role": u.role,
+            "ultimo_login_em": _iso(u.last_login_at),
+        }
+
     return {
         "success": True,
         "message": "Painel do gym",
@@ -150,14 +173,9 @@ def dashboard_academy(
                 "checkins_hoje": checkins_hoje or 0,
                 "checkins_ultimos_7_dias": checkins_7d or 0,
             },
-            "ultimos_logins": [
-                {
-                    "email": u.email,
-                    "role": u.role,
-                    "ultimo_login_em": _iso(u.last_login_at),
-                }
-                for u in logins_rows
-            ],
+            "ultimos_logins": [_login_row(u) for u in logins_rows],
+            "ultimos_logins_alunos": [_login_row(u) for u in logins_alunos_rows],
+            "ultimos_logins_equipe": [_login_row(u) for u in logins_equipe_rows],
             "auditoria": [
                 _serialize_audit(e, include_actor_email=True) for e in audit_rows
             ],

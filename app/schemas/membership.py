@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class PlanCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
-    price: Decimal = Field(..., gt=0)
+    price: Decimal = Field(..., ge=0, description="0 = plano gratuito")
     duration_days: int = Field(..., gt=0, le=3660)
     is_active: bool = True
 

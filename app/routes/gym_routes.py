@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.deps import require_system_admin
 from app.db.deps import get_db
 from app.models.gym import Gym
 from app.schemas.gym import GymCreate, GymResponse
@@ -26,7 +27,11 @@ def list_gyms(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=ResponseBase)
-def create_gym(data: GymCreate, db: Session = Depends(get_db)):
+def create_gym(
+    data: GymCreate,
+    _sys=Depends(require_system_admin),
+    db: Session = Depends(get_db),
+):
     name = (data.name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Gym name is required")
