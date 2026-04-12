@@ -228,3 +228,79 @@ def mercadopago_oauth_exchange_code(
             detail=f"Mercado Pago OAuth token falhou: {r.status_code} {r.text[:500]}",
         )
     return r.json()
+
+
+def mercadopago_oauth_refresh_access_token(
+    client_id: str,
+    client_secret: str,
+    refresh_token: str,
+    *,
+    test_token: bool = False,
+) -> dict[str, Any]:
+    """Renova access_token usando refresh_token (OAuth conta vendedor)."""
+    data: dict[str, Any] = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+    }
+    if test_token:
+        data["test_token"] = "true"
+    with httpx.Client(timeout=45.0) as client:
+        r = client.post(
+            f"{MERCADOPAGO_API}/oauth/token",
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data=data,
+        )
+    if r.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Mercado Pago refresh token falhou: {r.status_code} {r.text[:500]}",
+        )
+    return r.json()
+
+
+def mercadopago_create_preference_simple(
+    access_token: str,
+    *,
+    title: str,
+    quantity: int,
+    unit_price: float,
+) -> tuple[str, str]:
+    """Preference mínima (Checkout Pro); retorna (init_point, preference_id)."""
+    body: dict[str, Any] = {
+        "items": [
+            {
+                "title": title[:256],
+                "quantity": quantity,
+                "unit_price": float(unit_price),
+                "currency_id": "BRL",
+            }
+        ],
+    }
+    with httpx.Client(timeout=45.0) as client:
+        r = client.post(
+            f"{MERCADOPAGO_API}/checkout/preferences",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            json=body,
+        )
+    if r.status_code not in (200, 201):
+        raise HTTPException(
+            status_code=502,
+            detail=f"Mercado Pago preference falhou: {r.status_code} {r.text[:500]}",
+        )
+    data = r.json()
+    pref_id = data.get("id")
+    url = data.get("init_point") or data.get("sandbox_init_point")
+    if not pref_id or not url:
+        raise HTTPException(
+            status_code=502,
+            detail="Mercado Pago não retornou init_point / sandbox_init_point",
+        )
+    return str(url), str(pref_id)

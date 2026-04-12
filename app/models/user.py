@@ -17,3 +17,10 @@ class User(Base):
     role = Column(String, default="ALUNO")
     password_reset_at = Column(DateTime, nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
+
+    mercado_pago_account = relationship(
+        "MercadoPagoAccount",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
