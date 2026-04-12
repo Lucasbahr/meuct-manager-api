@@ -100,6 +100,15 @@ class StudentAdminUpdate(StudentUpdate):
     status: Optional[str] = None
     tempo_de_treino: Optional[int] = None
     professor_modality_ids: Optional[List[int]] = None
+    modality_id: Optional[int] = None
+    graduation_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def modality_graduation_pair(self):
+        a, b = self.modality_id, self.graduation_id
+        if (a is None) ^ (b is None):
+            raise ValueError("Informe modality_id e graduation_id juntos, ou nenhum")
+        return self
 
 
 class StudentResponse(BaseModel):
