@@ -168,6 +168,27 @@ def admin_payment_config(
     }
 
 
+@router.get("/payment/config", response_model=ResponseBase)
+def admin_get_payment_config(
+    provider: Literal["mercado_pago", "paypal"] = Query("mercado_pago"),
+    _admin=Depends(require_academy_admin),
+    db: Session = Depends(get_db),
+    gym_id: int = Depends(require_gym_id),
+):
+    row = msvc.get_payment_settings_row(db, gym_id, provider)
+    if not row:
+        return {
+            "success": True,
+            "message": "Sem configuração salva",
+            "data": None,
+        }
+    return {
+        "success": True,
+        "message": "OK",
+        "data": msvc.payment_settings_to_out(row),
+    }
+
+
 @router.post("/payment/mercado-pago/oauth/start", response_model=ResponseBase)
 def mercadopago_oauth_start(
     body: MercadoPagoOAuthStart = MercadoPagoOAuthStart(),

@@ -307,6 +307,21 @@ def create_subcategory(
     return s
 
 
+def get_payment_settings_row(
+    db: Session, gym_id: int, provider: str
+) -> Optional[GymPaymentSettings]:
+    if provider not in (PROVIDER_PAYPAL, PROVIDER_MERCADOPAGO):
+        raise HTTPException(status_code=400, detail="provider inválido")
+    return (
+        db.query(GymPaymentSettings)
+        .filter(
+            GymPaymentSettings.gym_id == gym_id,
+            GymPaymentSettings.provider == provider,
+        )
+        .first()
+    )
+
+
 def upsert_payment_settings(
     db: Session,
     gym_id: int,
