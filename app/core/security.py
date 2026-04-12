@@ -114,3 +114,28 @@ def decode_mercadopago_oauth_state(token: str) -> dict:
     except (KeyError, TypeError, ValueError) as e:
         raise ValueError("state inválido") from e
     return {"gym_id": gid, "next": payload.get("next")}
+
+
+def create_mercadopago_user_oauth_state(
+    user_id: int, next_url: Optional[str] = None
+) -> str:
+    """JWT curto para `state` do OAuth MP por usuário (CSRF + user_id)."""
+    payload: dict = {"user_id": user_id}
+    if next_url is not None:
+        if len(next_url) > 2048:
+            raise ValueError("next_url excede o tamanho máximo")
+        payload["next"] = next_url
+    return _create_token(payload, timedelta(minutes=15), "mp_user_oauth")
+
+
+def decode_mercadopago_user_oauth_state(token: str) -> dict:
+    payload = decode_token(token)
+    if payload.get("error"):
+        raise ValueError("state inválido ou expirado")
+    if payload.get("type") != "mp_user_oauth":
+        raise ValueError("state inválido")
+    try:
+        uid = int(payload["user_id"])
+    except (KeyError, TypeError, ValueError) as e:
+        raise ValueError("state inválido") from e
+    return {"user_id": uid, "next": payload.get("next")}
