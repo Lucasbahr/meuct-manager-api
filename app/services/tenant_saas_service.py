@@ -171,6 +171,37 @@ def list_modalities_for_tenant(db: Session, gym_id: int) -> List[dict[str, Any]]
     return [{"id": m.id, "nome": m.name} for m in q.all()]
 
 
+def ensure_default_graduation_for_gym_modality(
+    db: Session, gym_id: int, modality_id: int
+) -> None:
+    """
+    Garante que a modalidade apareça em GET /modalidades para o tenant.
+
+    A listagem só inclui modalidades com ao menos uma linha em `graduations`
+    para aquele gym. O POST /modalidades só criava o registro global em
+    `modalities`, deixando a lista vazia até existir uma graduação.
+    """
+    exists = (
+        db.query(Graduation)
+        .filter(
+            Graduation.gym_id == gym_id,
+            Graduation.modality_id == modality_id,
+        )
+        .first()
+    )
+    if exists:
+        return
+    g = Graduation(
+        gym_id=gym_id,
+        modality_id=modality_id,
+        name="Iniciante",
+        level=1,
+        required_hours=Decimal("0"),
+    )
+    db.add(g)
+    db.flush()
+
+
 def list_graduacoes(
     db: Session, gym_id: int, modality_id: Optional[int]
 ) -> List[dict[str, Any]]:
