@@ -69,11 +69,6 @@ jobs:
       - name: Show docker logs on failure
         if: failure()
         run: docker compose logs --tail=200
-        run: curl --fail http://localhost:8080/health
-
-      - name: Show docker logs on failure
-        if: failure()
-        run: docker compose logs --tail=200
 
       - name: Stop containers
         run: docker compose  down
