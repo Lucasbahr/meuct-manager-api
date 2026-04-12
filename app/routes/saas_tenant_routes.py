@@ -152,6 +152,7 @@ def create_modalidade_saas(
     gym_id: int = Depends(require_gym_id),
 ):
     m = ts_svc.create_modality_global(db, body.nome)
+    ts_svc.ensure_default_graduation_for_gym_modality(db, gym_id, m.id)
     db.commit()
     db.refresh(m)
     return {
