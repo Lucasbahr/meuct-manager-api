@@ -1,4 +1,4 @@
-"""OAuth Mercado Pago por usuário (MP_*) e POST /payments/create."""
+"""OAuth Mercado Pago por usuário (MERCADOPAGO_OAUTH_*) e POST /payments/create."""
 
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -8,9 +8,9 @@ from app.models.mercadopago_account import MercadoPagoAccount
 
 
 def test_mercadopago_user_connect_requires_env(client, admin_token, monkeypatch):
-    monkeypatch.delenv("MP_CLIENT_ID", raising=False)
-    monkeypatch.delenv("MP_CLIENT_SECRET", raising=False)
-    monkeypatch.delenv("MP_REDIRECT_URI", raising=False)
+    monkeypatch.delenv("MERCADOPAGO_OAUTH_CLIENT_ID", raising=False)
+    monkeypatch.delenv("MERCADOPAGO_OAUTH_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("MERCADOPAGO_OAUTH_REDIRECT_URI", raising=False)
     r = client.get(
         "/mercadopago/connect",
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -21,9 +21,12 @@ def test_mercadopago_user_connect_requires_env(client, admin_token, monkeypatch)
 def test_mercadopago_user_connect_returns_br_auth_url(
     client, admin_token, monkeypatch
 ):
-    monkeypatch.setenv("MP_CLIENT_ID", "app_client_id")
-    monkeypatch.setenv("MP_CLIENT_SECRET", "secret")
-    monkeypatch.setenv("MP_REDIRECT_URI", "https://api.example.com/mercadopago/callback")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_ID", "app_client_id")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_SECRET", "secret")
+    monkeypatch.setenv(
+        "MERCADOPAGO_OAUTH_REDIRECT_URI",
+        "https://api.example.com/mercadopago/callback",
+    )
     r = client.get(
         "/mercadopago/connect",
         headers={"Authorization": f"Bearer {admin_token}"},
@@ -37,9 +40,9 @@ def test_mercadopago_user_connect_returns_br_auth_url(
 def test_mercadopago_user_connect_forbidden_for_student(
     client, user_token, monkeypatch
 ):
-    monkeypatch.setenv("MP_CLIENT_ID", "x")
-    monkeypatch.setenv("MP_CLIENT_SECRET", "y")
-    monkeypatch.setenv("MP_REDIRECT_URI", "https://x/cb")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_ID", "x")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_SECRET", "y")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_REDIRECT_URI", "https://x/cb")
     r = client.get(
         "/mercadopago/connect",
         headers={"Authorization": f"Bearer {user_token}"},
@@ -50,9 +53,9 @@ def test_mercadopago_user_connect_forbidden_for_student(
 def test_mercadopago_user_oauth_callback_persists_tokens(
     client, admin_user, db, monkeypatch
 ):
-    monkeypatch.setenv("MP_CLIENT_ID", "cid")
-    monkeypatch.setenv("MP_CLIENT_SECRET", "csec")
-    monkeypatch.setenv("MP_REDIRECT_URI", "https://cb")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_ID", "cid")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_SECRET", "csec")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_REDIRECT_URI", "https://cb")
     state = create_mercadopago_user_oauth_state(admin_user.id)
 
     def fake_exchange(*_a, **_k):

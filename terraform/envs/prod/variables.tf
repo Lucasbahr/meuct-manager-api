@@ -84,3 +84,23 @@ variable "gcs_provision_tenant_on_create" {
   default     = true
   description = "Se true, a API cria marcadores em tenants/{gym_id}/... ao POST /gyms."
 }
+
+variable "mercadopago_oauth_client_id" {
+  type        = string
+  default     = ""
+  description = "Mercado Pago OAuth (app): client id"
+}
+
+variable "mercadopago_oauth_client_secret" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Mercado Pago OAuth (app): client secret"
+}
+
+variable "mercadopago_oauth_redirect_uri" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Redirect OAuth MP (ex.: https://api.../mercadopago/callback)"
+}

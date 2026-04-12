@@ -1,8 +1,7 @@
-from html import escape
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_academy_admin, require_gym_id
@@ -20,6 +19,10 @@ from app.schemas.marketplace import (
 )
 from app.schemas.response import ResponseBase
 from app.services import marketplace_service as msvc
+from app.services.mercadopago_oauth_dispatch import (
+    dispatch_mercadopago_oauth_callback,
+    mercadopago_oauth_callback_http_response,
+)
 
 router = APIRouter(tags=["Marketplace"])
 
@@ -213,18 +216,9 @@ def mercadopago_oauth_callback(
     error_description: Optional[str] = Query(None),
 ):
     oauth_err = error or error_description
-    result = msvc.mercadopago_oauth_handle_callback(db, code, state, oauth_err)
+    result, flow = dispatch_mercadopago_oauth_callback(db, code, state, oauth_err)
     db.commit()
-    if result.get("redirect"):
-        return RedirectResponse(result["redirect"], status_code=302)
-    if result["ok"]:
-        return HTMLResponse(
-            "<html><body>Mercado Pago conectado à academia. Você pode fechar esta aba.</body></html>"
-        )
-    return HTMLResponse(
-        f"<html><body>Erro: {escape(result['message'])}</body></html>",
-        status_code=400,
-    )
+    return mercadopago_oauth_callback_http_response(result, flow)
 
 
 # --- Aluno / catálogo ---

@@ -1,4 +1,4 @@
-"""Conta Mercado Pago OAuth vinculada ao usuário (admin da academia / tenant)."""
+"""Conta Mercado Pago OAuth por usuário (academia); tokens cifrados com PAYMENT_CREDENTIALS_FERNET_KEY quando definida."""
 
 from datetime import datetime, timezone
 
@@ -13,9 +13,9 @@ def now_utc():
 
 
 class MercadoPagoAccount(Base):
-    __tablename__ = "mercado_pago_accounts"
+    __tablename__ = "mercadopago_accounts"
     __table_args__ = (
-        UniqueConstraint("user_id", name="uq_mercado_pago_accounts_user_id"),
+        UniqueConstraint("user_id", name="uq_mercadopago_accounts_user_id"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -30,4 +30,4 @@ class MercadoPagoAccount(Base):
         DateTime(timezone=True), nullable=False, default=now_utc, onupdate=now_utc
     )
 
-    user = relationship("User", back_populates="mercado_pago_account")
+    user = relationship("User", back_populates="mercadopago_account")

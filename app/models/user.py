@@ -18,7 +18,7 @@ class User(Base):
     password_reset_at = Column(DateTime, nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
 
-    mercado_pago_account = relationship(
+    mercadopago_account = relationship(
         "MercadoPagoAccount",
         back_populates="user",
         uselist=False,
