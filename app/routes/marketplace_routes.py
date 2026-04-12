@@ -212,6 +212,19 @@ def mercadopago_oauth_start(
     }
 
 
+def _mercadopago_oauth_callback_response(
+    db: Session,
+    code: Optional[str],
+    state: Optional[str],
+    error: Optional[str],
+    error_description: Optional[str],
+):
+    oauth_err = error or error_description
+    result = dispatch_mercadopago_oauth_callback(db, code, state, oauth_err)
+    db.commit()
+    return mercadopago_oauth_callback_http_response(result)
+
+
 @router.get("/payment/mercado-pago/oauth/callback")
 def mercadopago_oauth_callback(
     db: Session = Depends(get_db),
@@ -220,10 +233,23 @@ def mercadopago_oauth_callback(
     error: Optional[str] = Query(None),
     error_description: Optional[str] = Query(None),
 ):
-    oauth_err = error or error_description
-    result, flow = dispatch_mercadopago_oauth_callback(db, code, state, oauth_err)
-    db.commit()
-    return mercadopago_oauth_callback_http_response(result, flow)
+    return _mercadopago_oauth_callback_response(
+        db, code, state, error, error_description
+    )
+
+
+@router.get("/mercadopago/callback")
+def mercadopago_oauth_callback_redirect_uri_legacy(
+    db: Session = Depends(get_db),
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
+    error_description: Optional[str] = Query(None),
+):
+    """Alias para `MERCADOPAGO_OAUTH_REDIRECT_URI` já cadastrado como `/mercadopago/callback`."""
+    return _mercadopago_oauth_callback_response(
+        db, code, state, error, error_description
+    )
 
 
 # --- Aluno / catálogo ---

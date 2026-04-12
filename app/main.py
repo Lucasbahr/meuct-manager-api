@@ -15,7 +15,6 @@ from app.routes.stock_routes import router as stock_router
 from app.routes.membership_routes import router as membership_router
 from app.routes.reports_routes import router as reports_router
 from app.routes.student_modality_routes import router as student_modality_router
-from app.routes.mercadopago_user_routes import router as mercadopago_user_router
 from app.routes.saas_tenant_routes import router as saas_tenant_router
 from app.routes.gym_schedule_routes import router as gym_schedule_router
 from app.core.exceptions import http_exception_handler
@@ -73,4 +72,3 @@ app.include_router(reports_router)
 
 app.include_router(student_modality_router)
 
-app.include_router(mercadopago_user_router)
