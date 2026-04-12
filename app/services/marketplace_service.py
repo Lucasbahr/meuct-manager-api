@@ -514,7 +514,7 @@ def checkout_order(
             if it.product is None:
                 db.refresh(it, ["product"])
         url, ext_id = pay.mercadopago_create_preference(
-            creds, order, items, return_url, cancel_url
+            creds, order, items, return_url, cancel_url, gym_id=gym_id
         )
 
     order.payment_provider = provider
