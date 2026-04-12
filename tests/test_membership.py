@@ -78,6 +78,48 @@ def test_membership_plans_subscriptions_pay_and_reports(client, admin_token, use
     assert "due_soon" in body and "overdue" in body
 
 
+def test_free_plan_zero_price_and_subscription_auto_paid(client, admin_token, db):
+    from app.models.student import Student
+    from app.services.user_service import create_user
+
+    u = create_user(
+        db=db,
+        email="freeplan@test.com",
+        password="123456",
+        is_verified=True,
+    )
+    st = Student(user_id=u.id, nome="Aluno Gratuito", telefone="11777777777")
+    db.add(st)
+    db.commit()
+    db.refresh(st)
+
+    h = {"Authorization": f"Bearer {admin_token}"}
+    r = client.post(
+        "/plans",
+        headers=h,
+        json={
+            "name": "Social grátis",
+            "price": "0",
+            "duration_days": 30,
+            "is_active": True,
+        },
+    )
+    assert r.status_code == 200, r.text
+    plan_id = r.json()["data"]["id"]
+    assert Decimal(str(r.json()["data"]["price"])) == 0
+
+    sub_r = client.post(
+        "/subscriptions",
+        headers=h,
+        json={"student_id": st.id, "plan_id": plan_id},
+    )
+    assert sub_r.status_code == 200, sub_r.text
+    pay = sub_r.json()["data"]["payments"][0]
+    assert pay["status"] == "paid"
+    assert Decimal(str(pay["amount"])) == 0
+    assert pay.get("paid_at") is not None
+
+
 def test_membership_overdue_and_alerts(client, admin_token, user, db):
     from app.models.plan import Plan, StudentSubscription, SubscriptionPayment
 

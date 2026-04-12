@@ -51,6 +51,9 @@ def test_dashboard_academy_shows_checkin_audit(client, admin_token, user, db):
     assert r.status_code == 200
     data = r.json()["data"]
     assert data["resumo"]["checkins_hoje"] >= 1
+    assert "ultimos_logins_alunos" in data
+    assert "ultimos_logins_equipe" in data
+    assert isinstance(data["ultimos_logins_alunos"], list)
     actions = [e["action"] for e in data["auditoria"]]
     assert "CHECKIN" in actions
     assert any("actor_email" in e for e in data["auditoria"])

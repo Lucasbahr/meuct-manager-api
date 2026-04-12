@@ -19,6 +19,11 @@ class Modality(Base):
     student_modalities = relationship(
         "StudentModality", back_populates="modality", cascade="all, delete-orphan"
     )
+    student_professor_modalities = relationship(
+        "StudentProfessorModality",
+        back_populates="modality",
+        cascade="all, delete-orphan",
+    )
     graduation_history_entries = relationship(
         "StudentGraduationHistory",
         back_populates="modality",

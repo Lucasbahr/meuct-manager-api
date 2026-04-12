@@ -19,6 +19,11 @@ class Student(Base):
         back_populates="student",
         cascade="all, delete-orphan",
     )
+    professor_modalities = relationship(
+        "StudentProfessorModality",
+        back_populates="student",
+        cascade="all, delete-orphan",
+    )
     graduation_history = relationship(
         "StudentGraduationHistory",
         back_populates="student",
@@ -64,6 +69,7 @@ class Student(Base):
     status = Column(String, default="ativo")
 
     e_atleta = Column(Boolean, default=False, nullable=False)
+    e_professor = Column(Boolean, default=False, nullable=False)
     cartel_mma = Column(String(128), nullable=True)
     cartel_jiu = Column(String(128), nullable=True)
     cartel_k1 = Column(String(128), nullable=True)

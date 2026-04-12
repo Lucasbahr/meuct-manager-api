@@ -17,6 +17,16 @@ def _utc_today() -> date:
     return datetime.now(timezone.utc).date()
 
 
+def _plan_price_is_free(price: Any) -> bool:
+    """Preço zero = plano gratuito (valor efetivo 0, independente do tipo vindo do DB)."""
+    if price is None:
+        return False
+    try:
+        return Decimal(str(price)) == 0
+    except Exception:
+        return False
+
+
 def resolve_report_period(
     *,
     days: Optional[int],
@@ -168,12 +178,15 @@ def create_subscription(
     db.add(sub)
     db.flush()
 
+    is_free = _plan_price_is_free(plan.price)
+    now = datetime.now(timezone.utc)
     payment = SubscriptionPayment(
         student_id=student_id,
         subscription_id=sub.id,
         amount=plan.price,
-        status="pending",
+        status="paid" if is_free else "pending",
         due_date=start,
+        paid_at=now if is_free else None,
     )
     db.add(payment)
     db.commit()

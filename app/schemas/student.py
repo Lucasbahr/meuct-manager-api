@@ -20,6 +20,16 @@ class StudentModalityItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ProfessorModalityItem(BaseModel):
+    """Modalidade em que o aluno atua como professor."""
+
+    id: int
+    modality_id: int
+    modality_name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class StudentModalityCreateBody(BaseModel):
     student_id: int
     modality_id: int
@@ -34,6 +44,7 @@ class StudentCreate(BaseModel):
     modality_id: Optional[int] = None
     graduation_id: Optional[int] = None
     e_atleta: bool = False
+    e_professor: bool = False
     cartel_mma: Optional[str] = None
     cartel_jiu: Optional[str] = None
     cartel_k1: Optional[str] = None
@@ -56,6 +67,7 @@ class StudentUpdate(BaseModel):
     telefone: Optional[str] = None
     endereco: Optional[str] = None
     e_atleta: Optional[bool] = None
+    e_professor: Optional[bool] = None
     cartel_mma: Optional[str] = None
     cartel_jiu: Optional[str] = None
     cartel_k1: Optional[str] = None
@@ -87,6 +99,7 @@ class StudentUpdate(BaseModel):
 class StudentAdminUpdate(StudentUpdate):
     status: Optional[str] = None
     tempo_de_treino: Optional[int] = None
+    professor_modality_ids: Optional[List[int]] = None
 
 
 class StudentResponse(BaseModel):
@@ -98,6 +111,7 @@ class StudentResponse(BaseModel):
     tempo_de_treino: Optional[int]
     status: Optional[str]
     e_atleta: bool
+    e_professor: bool
     cartel_mma: Optional[str]
     cartel_jiu: Optional[str]
     cartel_k1: Optional[str]
@@ -109,6 +123,7 @@ class StudentResponse(BaseModel):
     foto_url: Optional[str]
     foto_atleta_url: Optional[str]
     modalities: List[StudentModalityItem] = []
+    professor_modalities: List[ProfessorModalityItem] = []
     # Compatível com apps que ainda leem `modalidade` / `graduacao` (primeira inscrição).
     modalidade: Optional[str] = None
     graduacao: Optional[str] = None
