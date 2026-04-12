@@ -268,8 +268,8 @@ def test_mercadopago_oauth_start_and_callback(client, admin_token, db, monkeypat
 
     def fake_exchange(*_a, **_k):
         return {
-            "access_token": "AT-OAUTH",
-            "refresh_token": "RT-OAUTH",
+            "access_token": "TG-ACCESS-OAUTH-TEST",
+            "refresh_token": "TG-REFRESH-OAUTH-TEST",
             "user_id": 777,
         }
 
@@ -319,7 +319,11 @@ def test_mercadopago_oauth_callback_redirects_when_next_url(client, admin_token,
 
     monkeypatch.setattr(
         "app.services.marketplace_payment.mercadopago_oauth_exchange_code",
-        lambda *a, **k: {"access_token": "t1", "refresh_token": "r1", "user_id": 1},
+        lambda *a, **k: {
+            "access_token": "TG-t1",
+            "refresh_token": "TG-r1",
+            "user_id": 1,
+        },
     )
 
     cb = client.get(
@@ -331,3 +335,75 @@ def test_mercadopago_oauth_callback_redirects_when_next_url(client, admin_token,
     assert cb.headers["location"] == (
         "https://app.frontend.test/gym/pagamentos?mp_oauth=ok"
     )
+
+
+def test_mercadopago_payment_config_rejects_app_usr_token(client, admin_token):
+    """APP_USR sem refresh é o caso típico de colar só o token da aplicação."""
+    r = client.post(
+        "/payment/config",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "provider": "mercado_pago",
+            "access_token": "APP_USR-123-456",
+        },
+    )
+    assert r.status_code == 400
+
+
+def test_mercadopago_payment_config_requires_refresh_with_access(client, admin_token):
+    r = client.post(
+        "/payment/config",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "provider": "mercado_pago",
+            "access_token": "TG-access-only",
+        },
+    )
+    assert r.status_code == 400
+
+
+def test_mercadopago_oauth_callback_accepts_app_usr_access_when_refresh_present(
+    client, admin_token, db, monkeypatch
+):
+    """Documentação MP: access_token OAuth pode vir como APP_USR-... com refresh_token."""
+    from urllib.parse import parse_qs, urlparse
+
+    from app.models.marketplace import GymPaymentSettings
+
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_ID", "app123")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_CLIENT_SECRET", "secret456")
+    monkeypatch.setenv("MERCADOPAGO_OAUTH_REDIRECT_URI", "https://api.test/callback")
+
+    start = client.post(
+        "/payment/mercado-pago/oauth/start",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={},
+    )
+    assert start.status_code == 200, start.text
+    qs = parse_qs(urlparse(start.json()["data"]["authorization_url"]).query)
+    state = qs["state"][0]
+
+    monkeypatch.setattr(
+        "app.services.marketplace_payment.mercadopago_oauth_exchange_code",
+        lambda *a, **k: {
+            "access_token": "APP_USR-oauth-seller-token-example",
+            "refresh_token": "TG-REFRESH-OAUTH",
+            "user_id": 241983636,
+        },
+    )
+
+    cb = client.get(
+        "/payment/mercado-pago/oauth/callback",
+        params={"code": "auth-code-test", "state": state},
+    )
+    assert cb.status_code == 200, cb.text
+    row = (
+        db.query(GymPaymentSettings)
+        .filter(
+            GymPaymentSettings.gym_id == 1,
+            GymPaymentSettings.provider == "mercado_pago",
+        )
+        .first()
+    )
+    assert row is not None
+    assert row.refresh_token is not None

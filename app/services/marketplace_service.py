@@ -336,6 +336,28 @@ def upsert_payment_settings(
     if provider not in (PROVIDER_PAYPAL, PROVIDER_MERCADOPAGO):
         raise HTTPException(status_code=400, detail="provider inválido")
 
+    if provider == PROVIDER_MERCADOPAGO and access_token is not None:
+        at = str(access_token).strip()
+        if at:
+            rt = str(refresh_token).strip() if refresh_token is not None else ""
+            if not rt:
+                if at.upper().startswith(pay.MERCADOPAGO_APPLICATION_ACCESS_PREFIX):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "Mercado Pago: token APP_USR sem refresh_token indica credencial "
+                            "da aplicação. Use o fluxo OAuth ou informe access_token e "
+                            "refresh_token retornados pelo /oauth/token."
+                        ),
+                    )
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Mercado Pago: informe refresh_token junto com access_token "
+                        "(ambos vêm da resposta do OAuth)."
+                    ),
+                )
+
     row = (
         db.query(GymPaymentSettings)
         .filter(
@@ -816,16 +838,28 @@ def mercadopago_oauth_handle_callback(
             "message": msg,
             "redirect": _mercadopago_oauth_redirect_failure(next_url, msg),
         }
-
-    hint = str(uid) if uid is not None else None
+    if uid is None:
+        msg = "Resposta do Mercado Pago sem user_id"
+        return {
+            "ok": False,
+            "message": msg,
+            "redirect": _mercadopago_oauth_redirect_failure(next_url, msg),
+        }
+    if not refresh or not str(refresh).strip():
+        msg = "Resposta do Mercado Pago sem refresh_token"
+        return {
+            "ok": False,
+            "message": msg,
+            "redirect": _mercadopago_oauth_redirect_failure(next_url, msg),
+        }
     upsert_payment_settings(
         db,
         gym_id,
         provider=PROVIDER_MERCADOPAGO,
-        client_id=hint,
+        client_id=str(uid),
         client_secret=None,
-        access_token=access,
-        refresh_token=refresh if refresh else None,
+        access_token=str(access),
+        refresh_token=str(refresh).strip(),
     )
     return {
         "ok": True,
