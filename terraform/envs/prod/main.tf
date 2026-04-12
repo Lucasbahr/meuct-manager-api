@@ -26,6 +26,22 @@ resource "google_storage_bucket_iam_member" "run_sa_media_admin" {
   member = "serviceAccount:${google_service_account.run_sa.email}"
 }
 
+locals {
+  media_bucket_name = "${var.service_name}-media-${var.environment}-${substr(replace(var.project_id, "_", "-"), 0, 12)}"
+}
+
+resource "google_storage_bucket" "media" {
+  name                        = local.media_bucket_name
+  location                    = var.region
+  uniform_bucket_level_access = true
+}
+
+resource "google_storage_bucket_iam_member" "run_sa_media_admin" {
+  bucket = google_storage_bucket.media.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.run_sa.email}"
+}
+
 
 resource "google_cloud_run_service" "api" {
   name     = "${var.service_name}-${var.environment}"

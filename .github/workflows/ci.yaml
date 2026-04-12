@@ -48,6 +48,9 @@ jobs:
     env:
       SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+    env:
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,6 +67,11 @@ jobs:
         run: sleep 20
 
       - name: Test API health
+        run: curl --fail http://localhost:8080/health
+
+      - name: Show docker logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
         run: curl --fail http://localhost:8080/health
 
       - name: Show docker logs on failure
