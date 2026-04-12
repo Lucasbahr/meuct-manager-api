@@ -28,9 +28,12 @@ def get_optional_user(
     if credentials is None:
         return None
     try:
-        return jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
     except (ExpiredSignatureError, JWTError):
         return None
+    if payload.get("type") != "access":
+        return None
+    return payload
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
@@ -38,11 +41,15 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expirado")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+    if payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Token de acesso inválido")
+
+    return payload
 
 
 def require_system_admin(user=Depends(get_current_user)):

@@ -1,6 +1,7 @@
+import json
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,10 @@ from app.services import marketplace_service as msvc
 from app.services.mercadopago_oauth_dispatch import (
     dispatch_mercadopago_oauth_callback,
     mercadopago_oauth_callback_http_response,
+)
+from app.services.payment_webhook_security import (
+    require_mercadopago_webhook_verified,
+    require_paypal_webhook_verified,
 )
 
 router = APIRouter(tags=["Marketplace"])
@@ -322,7 +327,14 @@ def checkout_route(
 
 @router.post("/webhooks/paypal/{gym_id}")
 async def webhook_paypal(gym_id: int, request: Request, db: Session = Depends(get_db)):
-    body = await request.json()
+    raw = await request.body()
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="JSON inválido")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Payload inválido")
+    require_paypal_webhook_verified(request, body)
     result = msvc.handle_paypal_webhook(db, gym_id, body)
     db.commit()
     return result
@@ -332,7 +344,14 @@ async def webhook_paypal(gym_id: int, request: Request, db: Session = Depends(ge
 async def webhook_mercado_pago(
     gym_id: int, request: Request, db: Session = Depends(get_db)
 ):
-    body = await request.json()
+    raw = await request.body()
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="JSON inválido")
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Payload inválido")
+    require_mercadopago_webhook_verified(request, body)
     result = msvc.handle_mercadopago_webhook(db, gym_id, body)
     db.commit()
     return result

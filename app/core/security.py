@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 import os
 from dotenv import load_dotenv
-from app.core.session_cache import session_cache
+from app.core.session_store import get_refresh_session_store
 
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -55,16 +55,16 @@ def create_access_token(data: dict):
 def create_refresh_token(data: dict):
     ttl = timedelta(days=30)
     token = _create_token(data, ttl, "refresh")
-    session_cache.put(token, ttl)
+    get_refresh_session_store().put(token, ttl)
     return token
 
 
 def refresh_session_valid(token: str) -> bool:
-    return session_cache.exists(token)
+    return get_refresh_session_store().exists(token)
 
 
 def revoke_refresh_token(token: str) -> None:
-    session_cache.delete(token)
+    get_refresh_session_store().delete(token)
 
 
 #  RESET TOKEN (senha)
