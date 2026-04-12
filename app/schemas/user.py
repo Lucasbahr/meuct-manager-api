@@ -19,6 +19,11 @@ class UserCreate(BaseModel):
         max_length=80,
         description="Se informado, define a academia pelo slug (white-label)",
     )
+    registration_secret: Optional[str] = Field(
+        default=None,
+        max_length=256,
+        description="Obrigatório quando REGISTRATION_SECRET está definido no servidor",
+    )
 
     @field_validator("email")
     @classmethod

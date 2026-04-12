@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 import os
 from dotenv import load_dotenv
-from app.core.session_cache import session_cache
+from app.core.session_store import get_refresh_session_store
 
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -55,16 +55,16 @@ def create_access_token(data: dict):
 def create_refresh_token(data: dict):
     ttl = timedelta(days=30)
     token = _create_token(data, ttl, "refresh")
-    session_cache.put(token, ttl)
+    get_refresh_session_store().put(token, ttl)
     return token
 
 
 def refresh_session_valid(token: str) -> bool:
-    return session_cache.exists(token)
+    return get_refresh_session_store().exists(token)
 
 
 def revoke_refresh_token(token: str) -> None:
-    session_cache.delete(token)
+    get_refresh_session_store().delete(token)
 
 
 #  RESET TOKEN (senha)
@@ -114,28 +114,3 @@ def decode_mercadopago_oauth_state(token: str) -> dict:
     except (KeyError, TypeError, ValueError) as e:
         raise ValueError("state inválido") from e
     return {"gym_id": gid, "next": payload.get("next")}
-
-
-def create_mercadopago_user_oauth_state(
-    user_id: int, next_url: Optional[str] = None
-) -> str:
-    """JWT curto para `state` do OAuth MP por usuário (CSRF + user_id)."""
-    payload: dict = {"user_id": user_id}
-    if next_url is not None:
-        if len(next_url) > 2048:
-            raise ValueError("next_url excede o tamanho máximo")
-        payload["next"] = next_url
-    return _create_token(payload, timedelta(minutes=15), "mp_user_oauth")
-
-
-def decode_mercadopago_user_oauth_state(token: str) -> dict:
-    payload = decode_token(token)
-    if payload.get("error"):
-        raise ValueError("state inválido ou expirado")
-    if payload.get("type") != "mp_user_oauth":
-        raise ValueError("state inválido")
-    try:
-        uid = int(payload["user_id"])
-    except (KeyError, TypeError, ValueError) as e:
-        raise ValueError("state inválido") from e
-    return {"user_id": uid, "next": payload.get("next")}

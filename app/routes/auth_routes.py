@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+import os
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from app.models.student import Student
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
@@ -14,6 +16,7 @@ from app.services.auth_service import (
     resend_verification_email,
 )
 from app.db.deps import get_db
+from app.core.rate_limit import check_rate_limit, client_ip_from_request
 from app.core.security import (
     decode_token,
     create_access_token,
@@ -37,8 +40,26 @@ logger = logging.getLogger(__name__)
 
 #  REGISTER
 @router.post("/register", response_model=ResponseBase)
-def register(user: UserCreate, db: Session = Depends(get_db)):
+def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     from app.services import tenant_saas_service as ts_svc
+
+    allowed, retry_after = check_rate_limit(
+        client_ip_from_request(request),
+        bucket_key="auth_register",
+        max_calls=10,
+        window_seconds=3600,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Muitas tentativas de registro. Tente mais tarde.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    reg_secret = (os.getenv("REGISTRATION_SECRET") or "").strip()
+    if reg_secret:
+        if not user.registration_secret or user.registration_secret != reg_secret:
+            raise HTTPException(status_code=403, detail="Registro não autorizado")
 
     gid = user.gym_id
     if user.tenant_slug:
@@ -68,7 +89,19 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
 #  LOGIN
 @router.post("/login", response_model=ResponseBase)
-def login(user: UserLogin, db: Session = Depends(get_db)):
+def login(request: Request, user: UserLogin, db: Session = Depends(get_db)):
+    allowed, retry_after = check_rate_limit(
+        client_ip_from_request(request),
+        bucket_key="auth_login",
+        max_calls=30,
+        window_seconds=60,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Muitas tentativas de login. Aguarde e tente novamente.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
     db_user = login_user(db, user.email, user.password)
     if not db_user:
@@ -89,6 +122,7 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
             "user_id": db_user.id,
             "role": db_user.role,
             "gym_id": db_user.gym_id,
+            "tenant_id": db_user.gym_id,
         }
     )
     refresh_token = create_refresh_token(

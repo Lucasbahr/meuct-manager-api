@@ -279,3 +279,48 @@ def test_logout_revokes_refresh_token(client, db):
 
     retry = client.post(f"/auth/refresh?refresh_token={refresh_token}")
     assert retry.status_code == 401
+
+
+def test_refresh_token_rejected_as_bearer_on_protected_route(client, db):
+    create_user(db, "bearer_refresh@teste.com", "123456")
+    login = client.post(
+        "/auth/login",
+        json={"email": "bearer_refresh@teste.com", "password": "123456"},
+    )
+    refresh_token = login.json()["data"]["refresh_token"]
+
+    response = client.put(
+        "/auth/change-password",
+        params={"current_password": "123456", "new_password": "654321"},
+        headers={"Authorization": f"Bearer {refresh_token}"},
+    )
+    assert response.status_code == 401
+
+
+def test_register_blocked_without_registration_secret_when_env_set(client, monkeypatch):
+    monkeypatch.setenv("REGISTRATION_SECRET", "only-known-by-admin")
+    r = client.post(
+        "/auth/register",
+        json={"email": "gate@teste.com", "password": "123456"},
+    )
+    assert r.status_code == 403
+
+    r2 = client.post(
+        "/auth/register",
+        json={
+            "email": "gate2@teste.com",
+            "password": "123456",
+            "registration_secret": "wrong",
+        },
+    )
+    assert r2.status_code == 403
+
+    r3 = client.post(
+        "/auth/register",
+        json={
+            "email": "gate3@teste.com",
+            "password": "123456",
+            "registration_secret": "only-known-by-admin",
+        },
+    )
+    assert r3.status_code == 200

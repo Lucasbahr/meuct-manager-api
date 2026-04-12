@@ -20,6 +20,8 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 @pytest.fixture(autouse=True)
 def upload_dir_tmp(monkeypatch, tmp_path):
     monkeypatch.setenv("UPLOAD_DIR", str(tmp_path / "uploads"))
+    monkeypatch.setenv("STRICT_PAYMENT_WEBHOOKS", "false")
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")
     yield
 
 

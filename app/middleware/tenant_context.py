@@ -26,6 +26,8 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
             token = auth[7:].strip()
             try:
                 payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                if payload.get("type") != "access":
+                    return await call_next(request)
                 tid = payload.get("tenant_id")
                 if tid is not None:
                     request.state.tenant_id = int(tid)

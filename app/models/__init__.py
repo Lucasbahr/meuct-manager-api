@@ -24,4 +24,3 @@ from .marketplace import (  # noqa: F401
 from .stock import GymNotification, StockMovement  # noqa: F401
 from .commission import PlatformCommission  # noqa: F401
 from .plan import Plan, StudentSubscription, SubscriptionPayment  # noqa: F401
-from .mercadopago_account import MercadoPagoAccount  # noqa: F401

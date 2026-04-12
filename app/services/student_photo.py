@@ -37,7 +37,18 @@ def local_upload_root() -> Path:
 
 def abs_photo_path(relative: str) -> Path:
     # Local-only path. In GCS mode we still keep this for tests/compat.
-    return _upload_root() / relative.replace("\\", "/")
+    root = _upload_root()
+    rel_norm = relative.replace("\\", "/").strip().strip("/")
+    if not rel_norm:
+        raise HTTPException(status_code=400, detail="Caminho de arquivo inválido")
+    parts = Path(rel_norm.replace("\\", "/")).parts
+    if ".." in parts:
+        raise HTTPException(status_code=400, detail="Caminho de arquivo inválido")
+    full = (root / rel_norm).resolve()
+    root_r = root.resolve()
+    if full != root_r and root_r not in full.parents:
+        raise HTTPException(status_code=400, detail="Caminho de arquivo inválido")
+    return full
 
 
 def _build_object_key(prefix: str, ext: str) -> str:
